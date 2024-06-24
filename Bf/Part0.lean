@@ -307,9 +307,8 @@ end sol!
 #guard test₁.tail? == some (nl.cs 3 |>.cs 2 |>.cs 1)
 
 /-- Just showing off. -/
-theorem head?_cons :
-  ∀ {hd : α} {tl : L α}, (tl.cs hd).head? = hd
-:= rfl
+theorem head?_cons : ∀ {hd : α} {tl : L α}, (tl.cs hd).head? = hd :=
+  rfl
 
 
 
@@ -408,6 +407,7 @@ instance ToStr.instBool : ToStr Bool :=
 #check ToStr.toString
 #eval ToStr.toString true -- finds `ToStr.instBool` on its own
 #eval ToStr.toString 7
+
 /--
 error: failed to synthesize instance
   ToStr (Option String)
@@ -435,7 +435,7 @@ instance ToStr.instOption [ToStr α] : ToStr (Option α) where
 - write an instance for `L` (our list type, it's still there)
 
 - `#check` out `ToString`, should look familiar
-- write `L.toString`, probably using `L.foldl`
+- write `L.toString` with the same signature as `ToString.toString`, probably using `L.foldl`
 - write `L.instToString`, a `ToString` instance for `L`
 -/
 
