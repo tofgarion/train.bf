@@ -52,6 +52,8 @@ inductive Ast.Seff
 | inp
 /-- Debug `println`-like instruction, **not** part of brainfuck proper. -/
 | dbg : String → Seff
+/-- Dumps the state. -/
+| dump
 deriving Inhabited, Repr, BEq
 
 #check Ast.Seff
@@ -190,13 +192,14 @@ def ofChar? : Char → Option Seff
 /-- Character representing a `Seff`. -/
 def toChar? : Seff → Option Char
 | out => '.' | inp => ','
-| dbg _ => none
+| dbg _ | dump => none
 
 /-- Pretty string representation. -/
 instance instToString : ToString Seff where
   toString
   | out => "." | inp => ","
   | dbg s => s!"dbg!(\"{s}\")"
+  | dump => s!"dump!"
 end sol!
 
 protected def toString (self : Seff) := toString self
@@ -254,6 +257,7 @@ def dec : Ast := Op.dec
 def out : Ast := Seff.out
 def inp : Ast := Seff.inp
 def dbg : String → Ast := Coe.coe ∘ Seff.dbg
+def dump : Ast := Seff.dump
 
 def chk : Nat → String → Ast := (Check.chk · ·)
 

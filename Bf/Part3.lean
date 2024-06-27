@@ -7,6 +7,85 @@ namespace Zen.Train.Bf
 
 
 
+private def alignRight (width : Nat) (s : String) (c := ' ') : String :=
+  if width > s.length then Id.run do
+    let mut pref := ""
+    for _ in [0 : width - s.length] do
+      pref := pref.push c
+    pref ++ s
+  else s
+
+/-- info: `---` `--1` `-12` `123` `1234` -/
+#guard_msgs in #eval do
+  println! "`{alignRight 3 "" '-'}`"
+  println! "`{alignRight 3 "1" '-'}`"
+  println! "`{alignRight 3 "12" '-'}`"
+  println! "`{alignRight 3 "123" '-'}`"
+  println! "`{alignRight 3 "1234" '-'}`"
+
+namespace Rt.Mem
+variable (self : Mem)
+
+/-! Let's warm up on monads: write `Rt.Mem.prettyMemLines` using
+- `Id.run do`
+- `alignRight` above
+- a `for` loop on `self.mem`.
+-/
+section sol!
+def prettyMemLines (pref := "") : Array String := Id.run do
+  let cellIdxWidth :=
+    toString self.mem.size.pred |>.length |> (· + 2)
+  let mut lines := Array.mkEmpty self.mem.size
+  let mut idx : Nat := 0
+  for val in self.mem do
+    let idxStr :=
+      if idx = self.ptr then s!"*{idx}*" else s!"{idx} "
+    idx := idx + 1
+    lines := lines.push s!"{pref}{alignRight cellIdxWidth idxStr} ↦ {val}"
+  return lines
+end sol!
+
+def prettyMem (pref := "") : String :=
+  self.prettyMemLines pref |>.foldl
+    (fun | "", l => l | s, l => s ++ "\n" ++ l)
+    ""
+
+def prettyPrint (pref := "") : IO Unit := do
+  for line in self.prettyMemLines do
+    println! "{pref}{line}"
+
+/-- info:
+>  0  ↦ 0
+> *1* ↦ 7
+>  2  ↦ 10
+----
+>   0  ↦ 0
+>   1  ↦ 7
+>   2  ↦ 10
+>   3  ↦ 0
+>   4  ↦ 0
+>   5  ↦ 0
+>   6  ↦ 0
+>   7  ↦ 0
+>   8  ↦ 0
+>   9  ↦ 0
+> *10* ↦ 9
+-/
+#guard_msgs in #eval do
+  let mut mem := mk |>.mvr |>.setCurr 7 |>.mvr |>.setCurr 10 |>.mvl
+  mem.prettyPrint "> "
+  for _ in [0:9] do
+    mem := mem.mvr
+  mem := mem.setCurr 9
+  println! "----"
+  mem.prettyPrint "> "
+
+end Rt.Mem
+
+
+
+
+
 /-! Whatever the effect of the `Op`-s, `Seff`-s and `Check`-s, the nodes of the AST (`Ast.block` and
 `Ast.seq`) have the same semantics as long as we can check the value of the current cell.
 
@@ -47,7 +126,7 @@ abbrev Stack := List Frame
 
 
 /-- Abstracts over the runtime memory and the semantics of the operations. -/
-class Spec (Mon : Type → Type u) where
+structure Spec (Mon : Type → Type u) where
   /-- Applies an operator. -/
   op : Ast.Op → Mon Unit
   /-- Applies a side-effect. -/
@@ -66,9 +145,9 @@ namespace Spec
 
 variable {Mon : Type → Type u} [Monad Mon]
 
-def isZeroCurr [Self : Spec Mon] : Mon Bool :=
+def isZeroCurr (self : Spec Mon) : Mon Bool :=
   --      vvv~~~~~ `Functor.map`, comes for free as `Monad Mon` implies `Functor Mon`
-  (· = 0) <$> Self.getCurr
+  (· = 0) <$> self.getCurr
 
 #checkout Functor
 
@@ -98,6 +177,9 @@ scoped instance TestRt : Spec (StateT State IO) where
     let (val, s) := s.drainInput
     return ((), s.mapCurr (𝕂 val))
   | .dbg msg => println! msg
+  | .dump => do
+    let state ← get
+    println! "memory:\n{state.prettyMem "| "}"
   check
   | .chk exp msg, s => do
     let val := s.getCurr
@@ -125,60 +207,74 @@ where
   goUp : Stack → Mon Unit
     ...
 ```
+
+which you could also write as follows (less idiomatic though)
+
+```
+mutual
+def runWithStack ... :=
+  ...
+def goUp ... :=
+  ...
+end
+```
 -/
 
 section sol!
-partial def runWithStack [Self : Spec Mon] (stack : Stack) : Ast → Mon Unit
+@[specialize 1 2 self]
+partial def runWithStack (self : Spec Mon) (stack : Stack) : Ast → Mon Unit
 | .op o => do
-  Self.op o
+  self.op o
   goUp stack
 | .seff s => do
-  Self.seff s
+  self.seff s
   goUp stack
 | .check c => do
-  Self.check c
+  self.check c
   goUp stack
 | .block b => do
-  if ← Self.isZeroCurr then goUp stack else
-    let val ← Self.getCurr
-    Self.runWithStack (.block val 0 b :: stack) b
+  if ← self.isZeroCurr then goUp stack else
+    let val ← self.getCurr
+    self.runWithStack (.block val 0 b :: stack) b
 | .seq s =>
   if h : 0 < s.size then
     let stack := .seq s ⟨0, h⟩ :: stack
-    Self.runWithStack stack s[0]
+    self.runWithStack stack s[0]
   else goUp stack
 where
+  @[specialize 1 2 self]
   goUp : Stack → Mon Unit
-  | [] => return ()
-  | .seq s idx :: stack =>
-    let idx := idx.val + 1
-    if h : idx < s.size then
-      let stack := .seq s ⟨idx, h⟩ :: stack
-      Self.runWithStack stack s[idx]
-    else
-      goUp stack
-  | .block oldVal count body :: stack => do
-    if ← Self.isZeroCurr then goUp stack else
-      let val ← Self.getCurr
-      let count := if val < oldVal then count else count.succ
-      let loopLimit ← Self.getLoopLimit
-      if let some limit := loopLimit then
-        if h_lt : limit < count then
-          Error.loopLimit limit count h_lt
-          |> Self.throw
-      Self.runWithStack (.block val count body :: stack) body
+    | [] => return ()
+    | .seq s idx :: stack =>
+      let idx := idx.val + 1
+      if h : idx < s.size then
+        let stack := .seq s ⟨idx, h⟩ :: stack
+        self.runWithStack stack s[idx]
+      else
+        goUp stack
+    | .block oldVal count body :: stack => do
+      if ← self.isZeroCurr then goUp stack else
+        let val ← self.getCurr
+        let count := if val < oldVal then count else count.succ
+        let loopLimit ← self.getLoopLimit
+        if let some limit := loopLimit then
+          if h_lt : limit < count then
+            Error.loopLimit limit count h_lt
+            |> self.throw
+        self.runWithStack (.block val count body :: stack) body
 end sol!
 
 /-- info:
-Zen.Train.Bf.Rt.Spec.runWithStack.{u} {Mon : Type → Type u} [Monad Mon] [Self : Spec Mon] (stack : Stack) :
+Zen.Train.Bf.Rt.Spec.runWithStack.{u} {Mon : Type → Type u} [Monad Mon] (self : Spec Mon) (stack : Stack) :
   Ast → Mon Unit
 -/
 #guard_msgs in #check runWithStack
 
 
 
-abbrev justRun [Self : Spec Mon] : Ast → Mon Unit :=
-  Self.runWithStack []
+@[specialize 1 2 self, always_inline, inline]
+abbrev justRun (self : Spec Mon) : Ast → Mon Unit :=
+  self.runWithStack []
 
 
 
@@ -412,18 +508,36 @@ Zen.Train.Bf.Rt.BfT.stateDo {M : Type → Type} [Monad M] {α : Type} (f : State
 /-! Time for `Monad (BfT M)`! -/
 
 section sol!
+@[always_inline, inline]
 protected def pure (a : α) : BfT M α
 | state => return .ok a state
 
+@[always_inline, inline]
 protected def bind (code : BfT M α) (f : α → BfT M β) : BfT M β
 | state => do
   match ← code state with
   | .ok a state => f a state
   | .error e state => return .error e state
 
+@[always_inline, inline]
+protected def map (f : α → β) (a? : BfT M α) : BfT M β
+| state => do
+  match ← a? state with
+  | .ok a state => return .ok (f a) state
+  | .error e state => return .error e state
+
+@[always_inline, inline]
+protected def seqRight (a? : BfT M α) (andThen? : Unit → BfT M β) : BfT M β
+| state => do
+  match ← a? state with
+  | .ok _ state => andThen? () state
+  | .error e state => return .error e state
+
 instance instMonad : Monad (BfT M) where
   pure := BfT.pure
   bind := BfT.bind
+  map := BfT.map
+  seqRight := BfT.seqRight
 end sol!
 
 
@@ -505,13 +619,17 @@ def handleSeff : Ast.Seff → BfT M Unit
 | .inp => do
   let input ← drainInput
   mapState fun s => s.mapCurr (𝕂 input)
-| .dbg _msg =>
+| .dbg _msg | .dump =>
   return ()
 
 def handleSeffIO [MonadLiftT IO M] : Ast.Seff → BfT M Unit
 | .dbg msg => do
   if (←getState).dbg then
     liftM (println! msg)
+| .dump => do
+  let state ← getState
+  if state.dbg then
+    liftM (println! "memory:\n{state.prettyMem "| "}")
 | seff => handleSeff seff
 end sol!
 
@@ -521,6 +639,7 @@ end BfT
 
 /-! `Spec` instances! -/
 
+@[specialize]
 protected instance NoIO [Monad M] : Spec (BfT M) where
   op := BfT.handleOp
   seff := BfT.handleSeff
@@ -529,6 +648,7 @@ protected instance NoIO [Monad M] : Spec (BfT M) where
   getLoopLimit := BfT.getLoopLimit
   throw := BfT.throw
 
+@[specialize]
 protected instance IO [Monad M] [MonadLiftT IO M] : Spec (BfT M) :=
   {Rt.NoIO with seff := BfT.handleSeffIO}
 
@@ -553,6 +673,7 @@ memory: #[0, 2]
 namespace Spec
 variable [Monad M]
 
+@[specialize]
 def justExe
   (S : Spec (BfT M)) (code : Ast) (ex : Extract α)
 : BfT M α := do
@@ -561,11 +682,13 @@ def justExe
   | .ok res => return res
   | .error e => S.throw e
 
+@[specialize]
 def exe
   (S : Spec (BfT M)) (code : Ast) (inputs : List Nat) (ex : Extract α) (config := Config.default)
 : M (BfT.Res α) := do
   State.mk inputs (config := config) |> S.justExe code ex
 
+@[specialize]
 def exe!
   [Inhabited α]
   (S : Spec (BfT M)) (code : Ast) (inputs : List Nat) (ex : Extract α) (config := Config.default)
@@ -595,27 +718,27 @@ end Rt
 namespace Ast
 variable
   [Inhabited α]
-  (self : Ast) (inputs : List Nat) (ex : Rt.Extract α)
+  (self : Ast) (inputs : List Nat) (ex : Rt.Extract α) (config := Rt.Config.default)
 
 def evalTo : Rt.BfT.Res α :=
-  Rt.NoIO.exe (M := Id) self inputs ex
+  Rt.NoIO.exe (M := Id) self inputs ex config
 def eval : Rt.BfT.Res (Array Nat) :=
-  Rt.NoIO.exe (M := Id) self inputs .array
+  Rt.NoIO.exe (M := Id) self inputs .array config
 
 def evalTo! : α :=
-  Rt.NoIO.exe! (M := Id) self inputs ex
+  Rt.NoIO.exe! (M := Id) self inputs ex config
 def eval! : Array Nat :=
-  Rt.NoIO.exe! (M := Id) self inputs .array
+  Rt.NoIO.exe! (M := Id) self inputs .array config
 
 def evalIOTo : IO (Rt.BfT.Res α) :=
-  Rt.IO.exe (M := IO) self inputs ex
+  Rt.IO.exe (M := IO) self inputs ex config
 def evalIO : IO (Rt.BfT.Res (Array Nat)) :=
-  Rt.IO.exe (M := IO) self inputs .array
+  Rt.IO.exe (M := IO) self inputs .array config
 
 def evalIOTo! : IO α :=
-  Rt.IO.exe! (M := IO) self inputs ex
+  Rt.IO.exe! (M := IO) self inputs ex config
 def evalIO! : IO (Array Nat) :=
-  Rt.IO.exe! (M := IO) self inputs .array
+  Rt.IO.exe! (M := IO) self inputs .array config
 end Ast
 
 
@@ -626,19 +749,31 @@ namespace Std
 export Ast (
   mvr mvl
   inc dec
-  seq block
+  seq block blockSeq
   seqN moveBy add sub
   out inp
-  dbg chk
+  dbg dump chk
 )
 
+def loop := block
+def loopSeq := blockSeq
+
+/-- Sets the current cell to zero. -/
+def set0 : Ast :=
+  loop dec
+
 /-- Decreases the current cell, increase some other cell, come back. -/
-def dec_inc (target : Int) : Ast :=
+def decInc (target : Int) : Ast :=
   seq #[dec, moveBy target, inc, moveBy (-target)]
+
+/-- Adds (subtracts) `i : Int` to the current cell if `0 ≤ i` (`i < 0`). -/
+def addInt : Int → Ast
+| .ofNat n => add n
+| .negSucc n => sub n.succ
 
 /-- Moves the current cell to some other cell. -/
 def moveValueBy : Int → Ast :=
-  block ∘ dec_inc
+  loop ∘ decInc
 
 /-- Outputs the current cells and the `i` cells on the right if `0 ≤ i`, on the left otherwise. -/
 def emitCells (i : Int) : Ast :=
@@ -669,3 +804,146 @@ def emitCells (i : Int) : Ast :=
     emitCells 5
   ]
   test.eval! [7]
+
+
+
+/-- Runs `ast` `n` times, current cell is used as the counter and must be zero.
+
+- `ast` runs after an `Ast.mvr`, *i.e.* no need to move out of the counter.
+-/
+def doFor (n : Nat) (ast : Ast) : Ast := .seq #[
+  add n,
+  loop (dec.chain ast)
+]
+
+/-- Adds current value to a relative `target`, draining the current value. -/
+def addMoveBy (target : Nat) : Ast :=
+  loopSeq #[ dec, moveBy target, inc, moveBy (-target) ]
+
+/-- Adds current value to a relative `target`, preserves the current value.
+
+Uses a temporary cell, defaults to `target + 1`
+-/
+def addCopyBy (target : Nat) (tmp := target + 1) : Ast :=
+  seq #[
+    loop (decInc tmp),
+    moveBy tmp,
+    loopSeq #[
+      dec, -- decrease `tmp`
+      mvl, inc, -- increase `target`
+      moveBy (-target), inc, -- increase original cell
+      moveBy tmp -- back to `tmp`
+    ],
+    moveBy (-tmp) -- back to original cell
+  ]
+
+/-- Replaces the current cell value `v` by `fibonacci[v]`. -/
+def fib : Ast := seq #[
+  dbg "starting",
+  mvr, inc, -- mem[1] = 1
+  mvr, inc, -- mem[2] = 1
+  moveBy (-2), -- back to mem[0]
+  -- if mem[0] is `1` or `0`, set it to `0`
+  dec,
+  -- if mem[0] was `1` or `0`, we're done, otherwise compute next fib number
+  loopSeq #[
+    dec, -- decrement counter (mem[0])
+    dbg "starting outter loop (counter decremented)", dump,
+    mvr, moveValueBy 2, -- move previous value to mem[3]
+    mvr, loopSeq #[
+      -- add current fib-value (mem[2]) to old fib-value (mem[1] = `0`) and mem[3]
+      dec, mvl, inc, moveBy 2, inc, mvl
+    ], -- current fib-value (mem[2]) is now `0`
+    dbg "before moving current value", dump,
+    mvr, moveValueBy (-1),
+    moveBy (-3), -- back to counter (mem[0])
+    dbg "looping back (maybe)"
+  ],
+  chk 0 "counter should be 0",
+  dbg "done with main loop",
+  -- result is two cells right, move it to `mem[0]`
+  moveBy 2, moveValueBy (-2),
+  -- cleanup, set mem[1] `0`
+  mvl, set0,
+  -- -- go back to original cell
+  mvl,
+  dbg "done"
+]
+
+-- #TODO
+-- /-- info:
+-- computing `fib 4`
+-- starting outter loop (counter decremented)
+-- memory:
+-- | *0* ↦ 2
+-- |  1  ↦ 1
+-- |  2  ↦ 1
+-- before moving current value
+-- memory:
+-- |  0  ↦ 2
+-- |  1  ↦ 1
+-- | *2* ↦ 0
+-- |  3  ↦ 2
+-- starting outter loop (counter decremented)
+-- memory:
+-- | *0* ↦ 1
+-- |  1  ↦ 1
+-- |  2  ↦ 2
+-- |  3  ↦ 0
+-- before moving current value
+-- memory:
+-- |  0  ↦ 1
+-- |  1  ↦ 2
+-- | *2* ↦ 0
+-- |  3  ↦ 3
+-- starting outter loop (counter decremented)
+-- memory:
+-- | *0* ↦ 0
+-- |  1  ↦ 2
+-- |  2  ↦ 3
+-- |  3  ↦ 0
+-- before moving current value
+-- memory:
+-- |  0  ↦ 0
+-- |  1  ↦ 3
+-- | *2* ↦ 0
+-- |  3  ↦ 5
+-- #[5]
+-- -/
+-- #guard_msgs in #eval do
+--   let fib := seq #[ inp, fib, out ]
+--   let n := 4
+--   println! "computing `fib {n}`"
+--   fib.evalIO! [n]
+
+-- /-- info:
+-- fib[0] = 1
+-- fib[1] = 1
+-- fib[2] = 2
+-- fib[3] = 3
+-- fib[4] = 5
+-- fib[5] = 8
+-- fib[6] = 13
+-- fib[7] = 21
+-- -/
+-- #guard_msgs in #eval do
+--   let fib := seq #[
+--     out, fib, out, -- compute `fib 0` first
+--     -- loop :
+--     -- - read an input `i`
+--     -- - if zero then stop
+--     -- - else outputs the input, run `fib i` and outputs the result
+--     inp, loopSeq #[ out, fib, out, inp ]
+--   ]
+--   let outputs ←
+--     fib.evalIOTo! [1, 2, 3, 4, 5, 6, 7] .array (config := .allOff)
+--   let mut num := none
+--   for val in outputs do
+--     if let some n := num then
+--       println! "fib[{n}] = {val}"
+--       num := none
+--     else
+--       num := some val
+
+def fibOfInput : Ast :=
+  seq #[ inp, fib, out ]

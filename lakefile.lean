@@ -14,5 +14,5 @@ require «doc-gen4» from git
   "https://github.com/leanprover/doc-gen4" @ "cf138201a0a4fa8ca78b6e2a42a0a4860369d10e"
 
 @[default_target]
-lean_exe «bf» where
+lean_exe bf where
   root := `Main

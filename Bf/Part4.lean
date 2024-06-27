@@ -16,37 +16,43 @@ namespace Dsl
 
 
 
-declare_syntax_cat brnfck
+declare_syntax_cat bfTerm
 
-syntax ">" : brnfck
-syntax ">>" : brnfck
-syntax ">>>" : brnfck
-syntax "<" : brnfck
-syntax "<<" : brnfck
-syntax "<<<" : brnfck
-syntax "+" : brnfck
-syntax "++" : brnfck
-syntax "-" : brnfck
-syntax "->" : brnfck
-syntax "<-" : brnfck
-syntax "+>" : brnfck
-syntax ",+" : brnfck
-syntax "—" : brnfck
-syntax "——" : brnfck
-syntax "." : brnfck
-syntax ".." : brnfck
-syntax "," : brnfck
+/-- Creates a `Bf.Ast`-s.
 
-syntax "[" brnfck ? "]" : brnfck
-syntax brnfck brnfck : brnfck
-syntax "![" term "]" : brnfck
-syntax "dbg!" "(" term ")" : brnfck
-syntax "chk!" "(" term "," term ")" : brnfck
+Notes:
+- use `—` (`\em`) instead of `-` to avoid `--` being a comment;
+- `![ast]` injects the term `ast : Ast`;
+- `(dbg! string)` to build `Ast.dbg string`;
+- `(chk! nat string)` to build `Ast.chk nat string`.
+-/
+syntax "Bf.ast!" "(" bfTerm ")" : term
 
+syntax ">" : bfTerm
+syntax ">>" : bfTerm
+syntax ">>>" : bfTerm
+syntax "<" : bfTerm
+syntax "<<" : bfTerm
+syntax "<<<" : bfTerm
+syntax "+" : bfTerm
+syntax "++" : bfTerm
+syntax "-" : bfTerm
+syntax "->" : bfTerm
+syntax "<-" : bfTerm
+syntax "+>" : bfTerm
+syntax ",+" : bfTerm
+syntax "—" : bfTerm
+syntax "——" : bfTerm
+syntax "." : bfTerm
+syntax ".." : bfTerm
+syntax "," : bfTerm
 
-
-/-- Syntax extension to create `Bf.Ast`-s. -/
-syntax "Bf.ast!" "(" brnfck ")" : term
+syntax "[" bfTerm ? "]" : bfTerm
+syntax bfTerm bfTerm : bfTerm
+syntax "![" term "]" : bfTerm
+syntax "(" "dbg!" term ")" : bfTerm
+syntax "(" "chk!" term:max term ")" : bfTerm
+syntax "(" "dump!" ")" : bfTerm
 
 macro_rules
 | `(Bf.ast!(>)) => ``(Ast.mvr)
@@ -69,16 +75,18 @@ macro_rules
 | `(Bf.ast!(,+)) => ``(Ast.seq #[Ast.inp, Ast.inc])
 | `( Bf.ast!([]) ) =>
   ``( Ast.block <| Ast.seq #[] )
-| `( Bf.ast!([$sub:brnfck]) ) =>
+| `( Bf.ast!([$sub:bfTerm]) ) =>
   ``( Ast.block Bf.ast!($sub) )
-| `( Bf.ast!( $fst:brnfck $snd:brnfck ) ) => do
+| `( Bf.ast!( $fst:bfTerm $snd:bfTerm ) ) => do
   ``( Ast.chain Bf.ast!($fst) Bf.ast!($snd) )
 | `( Bf.ast!( ![$t] ) ) =>
   ``($t)
-| `( Bf.ast!( dbg!($s) ) ) =>
+| `( Bf.ast!( (dbg! $s) ) ) =>
   ``(Ast.dbg $s)
-| `( Bf.ast!( chk!($val, $msg) ) ) =>
+| `( Bf.ast!( (chk! $val $msg) ) ) =>
   ``(Ast.chk $val $msg)
+| `( Bf.ast!( (dump!) ) ) =>
+  ``(Ast.dump)
 
 example : Bf.ast!(.) = Ast.out :=
   rfl
@@ -106,11 +114,11 @@ exiting loop
 #guard_msgs in #eval
   Bf.ast!(
     ++++
-    dbg!("entering loop")
+    (dbg! "entering loop")
     [->+<]
-    dbg!("exiting loop")
+    (dbg! "exiting loop")
     >.
-    chk!(4, "not 4 :/")
+    (chk! 4 "not 4 :/")
   ).evalIO! []
 
 /-- info:
@@ -119,11 +127,11 @@ exiting loop
 #guard_msgs in #eval
   Bf.ast!(
     ++++
-    dbg!("entering loop")
+    (dbg! "entering loop")
     [->+<]
-    dbg!("exiting loop")
+    (dbg! "exiting loop")
     >.
-    chk!(4, "not 4 :/")
+    (chk! 4 "not 4 :/")
   ).eval! []
 
 end Dsl
@@ -154,125 +162,226 @@ end Rt
 
 namespace Dsl
 
+export Lean.Elab.Term (evalTerm)
+
+unsafe def evalTerm' (α : Type) [I : Lean.ToExpr α] (stx : Lean.Syntax) :=
+  Lean.Elab.Term.evalTerm α I.toTypeExpr stx
+
+unsafe def evalTerm'' {α : Type} [Lean.ToExpr α] := evalTerm' α
 
 
-declare_syntax_cat brnfckRunOpt
 
-syntax "-q" : brnfckRunOpt
-syntax "-quiet" : brnfckRunOpt
-syntax "-no-check" : brnfckRunOpt
-syntax "-no-loop-limit" : brnfckRunOpt
-syntax "-loop-limit" term:max : brnfckRunOpt
+namespace Ty
+open Lean (mkConst mkApp Expr)
 
-inductive RunOpt
-| quiet
-| noCheck
-| loopLimit : Option Nat → RunOpt
+def nat := mkConst ``Nat
+def expr := mkConst ``Expr
+def bool := mkConst ``Bool
 
-namespace RunOpt
+def res (t : Expr) := mkApp (mkConst ``Rt.BfT.Res) t
+def list (t : Expr) := mkApp (mkConst ``List [Lean.levelZero]) t
+def option (t : Expr) := mkApp (mkConst ``Option [Lean.levelZero]) t
+
+def typElabResExpr := mkApp (mkConst ``Lean.Elab.TermElabM) (res expr)
+def listNat := list nat
+def optionNat := option nat
+end Ty
+
+
+
+declare_syntax_cat bfOption (behavior := symbol)
+
+syntax "verb" " := " term : bfOption
+syntax "check" " := " term : bfOption
+syntax "loopLimit" " := " term : bfOption
+
+
+
+inductive Options
+| verb : Bool → Options
+| check : Bool → Options
+| loopLimit : Option Nat → Options
+
+namespace Options
 
 open Lean (TSyntax)
 open Lean.Elab
 
-unsafe def ofStx : TSyntax `brnfckRunOpt → TermElabM RunOpt
-| `(brnfckRunOpt| -q)
-| `(brnfckRunOpt| -quiet) => return quiet
-| `(brnfckRunOpt| -no-check) => return noCheck
-| `(brnfckRunOpt| -no-loop-limit) => return loopLimit none
-| `(brnfckRunOpt| -loop-limit $l) => do
-  let l ← Term.evalTerm Nat (Lean.mkConst ``Nat) l
-  return loopLimit l
+unsafe def ofStx : TSyntax `bfOption → TermElabM Options
+| `(bfOption| verb := $v) => do
+  let v ← evalTerm'' v
+  return Options.verb v
+| `(bfOption| check := $c) => do
+  let c ← evalTerm'' c
+  return Options.check c
+| `(bfOption| loopLimit := $limit) => do
+  try
+    let l ← evalTerm'' limit
+    return Options.loopLimit (some l)
+  catch
+  | _ =>
+    let l ← evalTerm'' limit
+    return Options.loopLimit l
 | _ => throwUnsupportedSyntax
 
-def apply (config : Rt.Config) : RunOpt → Rt.Config
-| quiet => {config with dbg := false}
-| noCheck => {config with check := false}
+def apply (config : Rt.Config) : Options → Rt.Config
+| verb b => {config with dbg := ¬ b}
+| check c => {config with check := c}
 | loopLimit l => {config with loopLimit := l}
 
-unsafe def handleStxArray (opts : Array (TSyntax `brnfckRunOpt)) : TermElabM Rt.Config := do
+unsafe def stxArrayToConfig (opts : Array (TSyntax `bfOption)) : TermElabM Rt.Config := do
   let mut conf := Rt.Config.default
   for opt in ← opts.mapM ofStx do
     conf := opt.apply conf
   return conf
-end RunOpt
+end Options
 
 
 
-/-- `Bf.run! [extractor] ast [inputs]`
+declare_syntax_cat bfExtractor (behavior := symbol)
 
-Runs `ast` with optionals `inputs`, and runs the optional `extractor` (`Extractor.array` if none).
+syntax "array" : bfExtractor
+syntax "unit" : bfExtractor
+syntax "head?" : bfExtractor
+syntax "head!" : bfExtractor
+syntax "strings" : bfExtractor
+syntax "string" : bfExtractor
+
+
+
+namespace Extractor
+open Lean.Elab (TermElabM)
+open Lean (Expr ToExpr TSyntax)
+
+def applyExtractor [I : ToExpr α] (ex : Rt.Extract α) (desc : String) (outputs : Array Nat)
+: TermElabM Expr :=
+  match ex.apply outputs with
+  | .ok res => return I.toExpr res
+  | .error e => Lean.throwError s!"[{desc} extractor] {e}"
+
+def apply (state : Rt.State) : Lean.TSyntax `bfExtractor → TermElabM Expr
+| `(bfExtractor| unit) =>
+  applyExtractor .unit "unit" state.outputs
+| `(bfExtractor| array) =>
+  applyExtractor .array "array" state.outputs
+| `(bfExtractor| head?) =>
+  applyExtractor .head? "head?" state.outputs
+| `(bfExtractor| head!) =>
+  applyExtractor .head! "head!" state.outputs
+| `(bfExtractor| string) =>
+  applyExtractor .string "string" state.outputs
+| `(bfExtractor| strings) =>
+  applyExtractor .strings "strings" state.outputs
+| _ => Lean.Elab.throwUnsupportedSyntax
+end Extractor
+
+
+/-- `Bf.run! <options> to <extractor> bf(<ast>) <inputs>`
+
+Runs `ast` on `inputs`, extracting the result with `extractor`.
+
+- `<options>` is potentially empty sequence of
+  - `(verb := b)` with `b : Bool`
+  - `(dbg := b)` with `b : Bool`
+  - `(loopLimit := n?)` with `n? : Nat`
+
+- `to <extractor>` is optional (`Extract.array` if none), with `<extractor>` one of `unit`, `array`,
+  `head?`, `head!`, `strings`, `string`.
+
+- `<inputs>` is the optional list of input, `[]` if none.
 -/
 syntax (name := Bf.run)
-  "Bf.run!" (brnfckRunOpt)*
-    ("[" term "]")?
-    "(" brnfck ")"
-    ("[" term "]")?
+  "Bf.run!"
+    ( "(" bfOption ")" )*
+    ( "to " bfExtractor )?
+    ( ("!" "(" bfTerm ")" ) <|> term:max )
+    term ?
 : term
+
+-- dealing with `bfExtractor` default
+macro_rules
+| `(Bf.run! $[($opts)]* !($bf)) =>
+  `(Bf.run! $[($opts)]* to array !($bf) [])
+
+| `(Bf.run! $[($opts)]* !($bf) $inputs) =>
+  `(Bf.run! $[($opts)]* to array !($bf) $inputs)
+
+| `(Bf.run! $[($opts)]* to $ex !($bf)) =>
+  `(Bf.run! $[($opts)]* to $ex !($bf) [])
+
+| `(Bf.run! $[($opts)]* to $ex !($bf:bfTerm) $inputs) =>
+  `(Bf.run! $[($opts)]* to $ex Bf.ast!($bf) $inputs)
 
 
 
 section elab!
 
-open Lean.Elab.Term (TermElab evalTerm)
+open Lean.Elab.Term (TermElab)
 open Lean (mkApp mkConst levelZero)
-
-def typNat := mkConst ``Nat
-def typExpr := mkConst ``Lean.Expr
-def typElabResExpr := mkApp (mkConst ``Lean.Elab.TermElabM) (mkApp (mkConst ``Rt.BfT.Res) typExpr)
-def typListNat := mkApp (mkConst ``List [levelZero]) typNat
 
 @[term_elab Bf.run]
 unsafe def elabBfRun : TermElab := fun stx _expectedType? =>
   match stx with
   | `(
     Bf.run!
-      -- $[$opts:brnfckRunOpt]*
-      $[[$ex:term]]? ($ast:brnfck) $[[$inputs:term]]?
+      $[ ( $opts:bfOption ) ]*
+      to $extractor:bfExtractor
+      $ast:term
+      $inputs:term
   ) => do
-    -- let conf ← RunOpt.handleStxArray opts
-    let inputs :=
-      if let some inputs := inputs
-      then inputs else ← `([])
-    let ex ←
-      if let some ex := ex then pure ex else ``(Rt.Extract.array)
-    let toRun ← ``(Rt.Elab.runExtractExpr Bf.ast!($ast) $inputs $ex)
-    let expr ← Lean.Elab.Term.elabTerm toRun none
-    Lean.Elab.Term.synthesizeSyntheticMVarsNoPostponing
-    let expr ← Lean.instantiateMVars expr
-    let elabExpr ←
-      Lean.Meta.evalExpr (Lean.Elab.TermElabM (Rt.BfT.Res Lean.Expr)) typElabResExpr expr
-    let expr? ← elabExpr
-    match expr? with
-    | .ok res _ => return res
-    | .error e state =>
-      let mem := state.mem.mapIdx fun idx val =>
-        if idx = state.ptr then s!"*{val}*" else toString val
-      Lean.throwError m!"{e.toString}\n- memory: {mem}"
+    let inputs ← evalTerm' (List Nat) inputs
+    -- Lean.logInfo s!"inputs: {inputs}"
+    let config ← Options.stxArrayToConfig opts
+    -- Lean.logInfo s!"ast: {ast}"
+    let ast ← evalTerm Ast (mkConst ``Ast) ast
+    -- Lean.logInfo s!"ast: {ast}"
+    -- set up runtime state with appropriate inputs
+    let initState := Rt.State.mk inputs (config := config)
+    -- run the code
+    match ← Rt.Elab.justRun ast initState with
+    | .ok () finalState =>
+      -- run the extractor
+      Extractor.apply finalState extractor
+    | .error e s =>
+      -- code failed, report error
+      Lean.throwError m!"\
+{e}
+- memory:\n{s.prettyMem "  | "}
+- inputs left: {s.inputs}
+- outputs: {s.outputs}\
+      "
   | _ => Lean.Elab.throwUnsupportedSyntax
 end elab!
 
-example : Bf.run!(+++.) = #[3] := by
+example : Bf.run! !(+++.) = #[3] := by
   rfl
 
 /-- info:
 done
 -/
-#guard_msgs in example : Bf.run!(![Ast.Test.val1]) = #[2] := by
+#guard_msgs in example : Bf.run! !( ![Ast.Test.val1] ) = #[2] := by
   rfl
 
 /-- error:
 value check failed, expected `7`, got `3`: not `7` :/
-- memory: [*3*]
+- memory:
+  | *0* ↦ 3
+- inputs left: []
+- outputs: [3]
 -/
 #guard_msgs in #eval
-  Bf.run![.array](+++.chk!(7, "not `7` :/"))
+  Bf.run! to array !(+++. (chk! 7 "not `7` :/"))
 
-example : Bf.run![.head?](+++.) = some 3 :=
+example : Bf.run! to head? !(+++.) = some 3 :=
   rfl
-example : Bf.run![.head?](+++) = none :=
+example : Bf.run! to head? !(+++) = none :=
   rfl
-example : Bf.run![.head!](+++.) = 3 :=
+example : Bf.run! to head! !(+++.) = 3 :=
   rfl
+
+/-- error: [head! extractor] expected at least one output, found none -/
+#guard_msgs in #eval
+  Bf.run! to head! !(+++)
 
 /-- info:
 I 🖤 catz
@@ -280,33 +389,34 @@ I 🖤 catz
 -/
 #guard_msgs in #eval do
   let array : Array String :=
-    Bf.run![.string] (,[.>,]) [
-      ("I 🖤 catz".data |>.map Char.toNat)
-      ++ [10^10] -- not a legal char, acts as a separator
-      ++ ("俺も".data |>.map Char.toNat)
-    ]
+    Bf.run! to strings !(,[.>,])
+      (
+        ("I 🖤 catz".data |>.map Char.toNat)
+        ++ [10^10] -- not a legal char, acts as a separator
+        ++ ("俺も".data |>.map Char.toNat)
+      )
   for s in array do
     println! s
 
-/-- error:
-[bf] failed to extract output `head!`, no output available
-- memory: [*3*]
--/
+/-- error: [head! extractor] expected at least one output, found none -/
 #guard_msgs in #eval
-  Bf.run![.head!](+++)
+  Bf.run! to head! !(+++)
 
 
-example : Bf.run![.head!](
-  chk!(0, "@0 is 0 on init")
-  +++++++
-  chk!(7, "added 1 × 7 to @0")
-  [->+<]>
-  chk!(7, "copied 7@0 to @1")
-  .
-) = 7 :=
+example : Bf.run! to head!
+  !(
+    (chk! 0 "@0 is 0 on init")
+    +++++++
+    (chk! 7 "added 1 × 7 to @0")
+    [->+<]>
+    (chk! 7 "copied 7@0 to @1")
+    .
+  )
+  = 7
+:=
   rfl
 
-#eval
-  Bf.run!(+++.)
-#eval
-  Bf.run!(, +++.)
+
+def fib7 := Bf.run! to head! !( ![Std.fibOfInput] ) [7]
+
+#eval Lean.ToExpr.toExpr fib7

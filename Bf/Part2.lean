@@ -124,6 +124,8 @@ end sol!
 #guard_msgs in #check mk
 
 
+instance instInhabited : Inhabited Mem := ⟨mk⟩
+
 
 variable (self : Mem)
 
@@ -134,6 +136,8 @@ def mapCurr (f : Nat → Nat) : Mem :=
     by simp [mem]
   ⟨mem, tmp ▸ self.ptr⟩
 
+def setCurr (val : Nat) : Mem :=
+  self.mapCurr (𝕂 val)
 
 
 section sol!
@@ -206,10 +210,10 @@ structure Config where
   loopLimit : Option Nat
 
 namespace Config
-protected def default : Config where
-  dbg := true
-  check := true
-  loopLimit := some 123
+protected def default (dbg := true) (check := true) (loopLimit := some 123) : Config :=
+  { dbg, check, loopLimit }
+
+def allOff := Config.default false false none
 
 instance instInhabited : Inhabited Config where
   default := Config.default
@@ -222,6 +226,7 @@ structure State extends Mem, Config where
 private mkRaw ::
   inputs : List Nat
   outputs : Array Nat
+deriving Inhabited
 
 namespace State
 
@@ -297,20 +302,26 @@ inductive Extract : Type → Type 1
 | head? : Extract (Option Nat)
 /-- Yields the first output, fails if none. -/
 | head! : Extract Nat
-/-- Folds over the outputs, allowed to fail. -/
-| tryFold : α → (α → Nat → Except Error α) → Extract α
+/-- Folds over the outputs with a finalizer. -/
+| tryFold : β → (β → Nat → Except Error β) → (β → Except Error α) → Extract α
 
 namespace Extract
-
-abbrev Out : Extract α → Type := 𝕂 α
 
 /-! Let's write more functions 🐙 -/
 
 section sol!
-def fold (init : α) (f : α → Nat → α) : Extract α :=
-  tryFold init (f · · |> .ok)
+def foldAnd (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α :=
+  tryFold init (f · · |> .ok) finalCheck
 end sol!
-/-- info: Zen.Train.Bf.Rt.Extract.fold {α : Type} (init : α) (f : α → Nat → α) : Extract α -/
+/-- info:
+Zen.Train.Bf.Rt.Extract.foldAnd {β α : Type} (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α -/
+#guard_msgs in #check foldAnd
+
+section sol!
+def fold : α → (α → Nat → α) → Extract α :=
+  (foldAnd · · .ok)
+end sol!
+/-- info: Zen.Train.Bf.Rt.Extract.fold {α : Type} : α → (α → Nat → α) → Extract α -/
 #guard_msgs in #check fold
 
 section sol!
@@ -325,14 +336,14 @@ def apply : (self : Extract α) → Array Nat → Except Error α
 | head!, a => do
   if h : 0 < a.size
   then return a[0]
-  else .error <| .text "[bf] failed to extract output `head!`, no output available"
-| tryFold init f, l => do
+  else .error <| .text "expected at least one output, found none"
+| tryFold init f finalize, l => do
   let mut res := init
   for n in l do
     res ← f res n
-  return res
+  finalize res
   -- -- alternatively just
-  -- l.foldlM f init
+  -- l.foldlM f init >>= finalize
 
 def apply' : Extract α → Array Nat → Except Error α
 | unit, _ => .ok ()
@@ -341,9 +352,9 @@ def apply' : Extract α → Array Nat → Except Error α
   if h : 0 < a.size then .ok a[0] else .ok none
 | head!, a => do
   if h : 0 < a.size then .ok a[0] else
-    .error <| .text "[bf] failed to extract output `head!`, no output available"
-| tryFold init f, l =>
-  applyTryFold init f l.data
+    .error <| .text "expected at least one output, found none"
+| tryFold init f finalize, l =>
+  applyTryFold init f l.data >>= finalize
 where
   applyTryFold {α : Type} init f : List Nat → Except Error α
   | [] => .ok init
@@ -382,7 +393,7 @@ def sum (init : Nat := 0) : Extract Nat :=
 
 
 /-- String list extraction, where non-char values are interpreted as separators. -/
-def string : Extract (Array String) :=
+def strings : Extract (Array String) :=
   fold #[] combine
 where
   combine stringArray n :=
@@ -403,6 +414,13 @@ where
         else ("", stringArray)
       curr.push c |> stringArray.push
 
+def string : Extract String :=
+  foldAnd #[] strings.combine fun
+    | #[s] => return s
+    | strings => do
+      Error.text s!"[string extractor] expected exactly one string, got {strings.size}"
+      |> Except.error
+
 /-- info:
 first result:
   `I 🖤 猫`
@@ -418,19 +436,19 @@ third result:
 #guard_msgs in #eval do
   let chars := "I 🖤 猫".data.map Char.toNat
   println! "first result:"
-  for bit in string.apply! chars.toArray do
-    println! "  `{bit}`"
+  let s := string.apply! chars.toArray
+    println! "  `{s}`"
   let chars :=
     chars ++ [0] ++ ("next bit".data.map Char.toNat)
   println! "second result:"
-  for bit in string.apply! chars.toArray do
+  for bit in strings.apply! chars.toArray do
     println! "  `{bit}`"
   let chars :=
     chars
     ++ [20^10] ++ ("and then".data.map Char.toNat)
     ++ [20130531] ++ [52016027] ++ ("finally".data.map Char.toNat)
   println! "third result:"
-  for bit in string.apply! chars.toArray do
+  for bit in strings.apply! chars.toArray do
     println! "  `{bit}`"
 
 end Extract
