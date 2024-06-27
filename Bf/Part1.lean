@@ -9,10 +9,12 @@ namespace Zen.Train.Bf
 
 /-! ## Inductive types
 
-We're writing a [brainfuck](https://en.wikipedia.org/wiki/Brainfuck) interpreter, except that the
-cells store `Nat`s.
+We're writing a [brainfuck](https://en.wikipedia.org/wiki/Brainfuck) interpreter. Our version of
+brainfuck has `Nat`-valued cells, inputs and outputs.
 
-- [brainfuck commands](https://en.wikipedia.org/wiki/Brainfuck#Language_design) which we will extend
+- [brainfuck commands](https://en.wikipedia.org/wiki/Brainfuck#Language_design)
+
+  (We will slightly extend these commands.)
 -/
 
 
@@ -125,6 +127,13 @@ end sol!
 
 
 
+section proofs
+
+theorem toChar_mvr : mvr.toChar = '>' := rfl
+theorem toChar_mvl : mvl.toChar = '<' := rfl
+theorem toChar_inc : inc.toChar = '+' := rfl
+theorem toChar_dec : dec.toChar = '-' := rfl
+
 theorem ofChar_toChar :
   ∀ (o : Op), ofChar? (toChar o) = some o
 := fun o => by
@@ -138,6 +147,8 @@ theorem toChar_ofChar :
   <;> simp
   <;> (intro h ; rw [← h] ; rfl)
 
+end proofs
+
 
 
 /-! Write two instances:
@@ -150,12 +161,15 @@ section sol!
 /-- Pretty string representation. -/
 instance instToString : ToString Op :=
   ⟨toString ∘ toChar⟩
+
 /-- Useful for debug. -/
 instance instOptionToString : ToString (Option Op) where
   toString
   | none => "¿"
   | some o => toString o
 end sol!
+
+protected def toString (self : Op) := toString self
 
 end Op
 
@@ -183,12 +197,17 @@ instance instToString : ToString Seff where
   toString
   | out => "." | inp => ","
   | dbg s => s!"dbg!(\"{s}\")"
-/-- Useful for debug. -/
-instance instOptionToString : ToString (Option Seff) where
-  toString
-  | none => "¿"
-  | some s => toString s
 end sol!
+
+protected def toString (self : Seff) := toString self
+
+section proofs
+
+theorem toChar_out : out.toChar? = '.' := rfl
+theorem toChar_inp : inp.toChar? = ',' := rfl
+theorem toChar_dbg : (dbg "msg").toChar? = none := rfl
+
+end proofs
 
 end Seff
 
@@ -218,56 +237,70 @@ def toString : Ast → String
   s!"[{exp}?]"
 | block b =>
   s!"[{b.toString}]"
-| seq l  =>
-  "" |> l.foldl fun acc ast => acc ++ ast.toString
+| seq a =>
+  "" |> a.foldl fun acc ast => acc ++ ast.toString
 
 instance instToString : ToString Ast := ⟨Ast.toString⟩
 
 
 
 /-! Lifting the constructors of `Op`, `Seff` and `Check` to the `Ast` namespace. -/
-def mvr : Ast := Ast.Op.mvr
-def mvl : Ast := Ast.Op.mvl
-def inc : Ast := Ast.Op.inc
-def dec : Ast := Ast.Op.dec
 
-def chain : Ast → Ast → Ast
-| .seq s1, .seq s2 => .seq <| s1 ++ s2
-| .seq s1, ast2 => .seq <| s1.push ast2
-| ast1, .seq s2 => .seq <| #[ast1] ++ s2
-| ast1, ast2 => .seq #[ast1, ast2]
+def mvr : Ast := Op.mvr
+def mvl : Ast := Op.mvl
+def inc : Ast := Op.inc
+def dec : Ast := Op.dec
+
+def out : Ast := Seff.out
+def inp : Ast := Seff.inp
+def dbg : String → Ast := Coe.coe ∘ Seff.dbg
+
+def chk : Nat → String → Ast := (Check.chk · ·)
+
+
+
+/-! A few helpers. -/
+
+def blockSeq : Array Ast → Ast :=
+  (block <| seq ·)
 
 def seqN : Nat → Ast → Ast :=
-  (mkArray · · |> .seq)
+  (seq <| mkArray · ·)
 
+
+
+/-! Write `moveBy` which takes an `i : Int` and moves right (left) `i` cells if `0≤i` (`i<0`). -/
+
+#check Int
+
+section sol!
 def moveBy : Int → Ast
-| .ofNat n => Ast.mvr.seqN n
-| .negSucc n => Ast.mvl.seqN n.succ
+| .ofNat n => mvr.seqN n
+| .negSucc n => mvl.seqN n.succ
+end sol!
 
 example : moveBy 3 = seq #[mvr, mvr, mvr] := rfl
+example : moveBy 0 = seq #[] := rfl
 example : moveBy (- 2) = seq #[mvl, mvl] := rfl
 
+
+
 def add (n : Nat) : Ast :=
-  Ast.seq (Array.mkArray n .inc)
+  seq (Array.mkArray n .inc)
 def sub (n : Nat) : Ast :=
-  Ast.seq (Array.mkArray n .dec)
+  seq (Array.mkArray n .dec)
 
 example : add 2 = seq #[inc, inc] := rfl
 example : sub 3 = seq #[dec, dec, dec] := rfl
 
-def out : Ast := Ast.Seff.out
-def inp : Ast := Ast.Seff.inp
-def dbg : String → Ast := Coe.coe ∘ Ast.Seff.dbg
-
-def chk : Nat → String → Ast := (Ast.Check.chk · ·)
-
-def Test.val1 : Ast := Ast.seq #[
-  .inc,
-  .block <| .seq #[.dec, .mvr, .inc, .inc, .mvl],
-  .mvr,
-  .out,
-  .chk 2 "not 2 😿",
-  .dbg "done"
+/-- `+[->++<]>.[2?][dbg("done")]` -/
+def Test.val1 : Ast := seq #[
+  inc,
+  block <| seq #[dec, mvr, inc, inc, mvl],
+  mvr,
+  out,
+  chk 2 "not 2 😿",
+  dbg "done"
 ]
 
 /-- info: "+[->++<]>.[2?][dbg]" -/
@@ -276,18 +309,32 @@ def Test.val1 : Ast := Ast.seq #[
 
 
 
-/-! Write `append` which chains two `Ast`-s, and an `Append` instance. -/
+/-! Write `chain` which chains two `Ast`-s, see `#eval` below. -/
+
+section sol!
+def chain : Ast → Ast → Ast
+| seq #[], ast
+| ast, seq #[] => ast
+| seq s1, seq s2 => seq <| s1 ++ s2
+| seq s1, ast2 => seq <| s1.push ast2
+| ast1, seq s2 => seq <| #[ast1] ++ s2
+| ast1, ast2 => seq #[ast1, ast2]
+end sol!
+
+/-- info: +- +- +- +- -/
+#guard_msgs in #eval do
+  println! "{chain inc dec}"
+  println! "{chain (seq #[inc]) dec}"
+  println! "{chain inc (seq #[dec])}"
+  println! "{chain (seq #[inc]) (seq #[dec])}"
+
+
+
+/-! Write an `Append` instance. -/
 #check Append
 
 section sol!
-/-- Chains two `Ast`-s. -/
-def append : Ast → Ast → Ast
-| seq s₁, seq s₂ => s₁ ++ s₂ |> seq
-| seq s₁, rgt => s₁.push rgt |> seq
-| lft, seq s₂ => #[lft] ++ s₂ |> seq
-| lft, rgt => seq #[lft, rgt]
-
-instance instAppend : Append Ast := ⟨append⟩
+instance instAppend : Append Ast := ⟨chain⟩
 end sol!
 
 /-- info:

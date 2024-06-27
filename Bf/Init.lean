@@ -45,3 +45,14 @@ def asciiToChar (n : Nat) : Char :=
   | 46 => '.'   | 62 => '>'   | 78 => 'N'   | 94 => '^'  | 110 => 'n'  | 126 => '~'
   | 47 => '/'   | 63 => '?'   | 79 => 'O'   | 95 => '_'  | 111 => 'o'
   | _ => '¿'
+
+
+/-- Same as `#check`, but does not produce *info* output.
+
+Errors and warnings are still visible though. -/
+syntax "#checkout" term : command
+
+macro_rules
+| `(#checkout $t) => `(#guard_msgs(drop info) in #check $t)
+
+#checkout List
