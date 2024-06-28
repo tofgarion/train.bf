@@ -696,6 +696,15 @@ def exe!
   match ← S.exe code inputs ex config with
   | .ok res _ => return res
   | .error err _ => panic! err.toString
+
+@[specialize]
+def exeIO!
+  [Inhabited α] [MonadLiftT IO M]
+  (S : Spec (BfT M)) (code : Ast) (inputs : List Nat) (ex : Extract α) (config := Config.default)
+: M α := do
+  match ← S.exe code inputs ex config with
+  | .ok res _ => return res
+  | .error err _ => IO.throwServerError err.toString
 end Spec
 
 
@@ -736,9 +745,9 @@ def evalIO : IO (Rt.BfT.Res (Array Nat)) :=
   Rt.IO.exe (M := IO) self inputs .array config
 
 def evalIOTo! : IO α :=
-  Rt.IO.exe! (M := IO) self inputs ex config
+  Rt.IO.exeIO! (M := IO) self inputs ex config
 def evalIO! : IO (Array Nat) :=
-  Rt.IO.exe! (M := IO) self inputs .array config
+  Rt.IO.exeIO! (M := IO) self inputs .array config
 end Ast
 
 
@@ -837,113 +846,121 @@ def addCopyBy (target : Nat) (tmp := target + 1) : Ast :=
     moveBy (-tmp) -- back to original cell
   ]
 
-/-- Replaces the current cell value `v` by `fibonacci[v]`. -/
-def fib : Ast := seq #[
-  dbg "starting",
-  mvr, inc, -- mem[1] = 1
-  mvr, inc, -- mem[2] = 1
-  moveBy (-2), -- back to mem[0]
-  -- if mem[0] is `1` or `0`, set it to `0`
-  dec,
-  -- if mem[0] was `1` or `0`, we're done, otherwise compute next fib number
-  loopSeq #[
-    dec, -- decrement counter (mem[0])
-    dbg "starting outter loop (counter decremented)", dump,
-    mvr, moveValueBy 2, -- move previous value to mem[3]
-    mvr, loopSeq #[
-      -- add current fib-value (mem[2]) to old fib-value (mem[1] = `0`) and mem[3]
-      dec, mvl, inc, moveBy 2, inc, mvl
-    ], -- current fib-value (mem[2]) is now `0`
-    dbg "before moving current value", dump,
-    mvr, moveValueBy (-1),
-    moveBy (-3), -- back to counter (mem[0])
-    dbg "looping back (maybe)"
-  ],
-  chk 0 "counter should be 0",
-  dbg "done with main loop",
-  -- result is two cells right, move it to `mem[0]`
-  moveBy 2, moveValueBy (-2),
-  -- cleanup, set mem[1] `0`
-  mvl, set0,
-  -- -- go back to original cell
-  mvl,
-  dbg "done"
-]
+def fib : Ast :=
+  seq #[ inp, pure, out ]
+where
+  /-- Replaces the current cell value `v` by `fibonacci[v+1]`. -/
+  pure : Ast := seq #[
+    -- mem[0]: decrementing counter, originaly `v`
+    -- mem[1]: previous value
+    -- mem[2]: current value
+    -- mem[3]: used for copies
+    dbg "starting",
+    mvr, inc, -- mem[1] = 1
+    mvr, inc, -- mem[2] = 1
+    moveBy (-2), -- back to mem[0]
+    dec,
+    -- if mem[0] was `0` or `1` we're done, otherwise compute next fib number
+    loopSeq #[
+      dec, -- decrement counter (mem[0])
+      dbg "starting outter loop (counter decremented)", dump,
+      mvr, moveValueBy 2, -- move previous value to mem[3]
+      mvr, loopSeq #[
+        -- add current fib-value (mem[2]) to old fib-value (mem[1] = `0`) and mem[3]
+        dec, mvl, inc, moveBy 2, inc, mvl
+      ], -- current fib-value (mem[2]) is now `0`
+      dbg "before moving current value", dump,
+      mvr, moveValueBy (-1),
+      moveBy (-3), -- back to counter (mem[0])
+      dbg "looping back (maybe)"
+    ],
+    chk 0 "counter should be 0",
+    dbg "done with main loop",
+    -- result is two cells right, move it to `mem[0]`
+    moveBy 2, moveValueBy (-2),
+    -- cleanup, set mem[1] `0`
+    mvl, set0,
+    -- -- go back to original cell
+    mvl,
+    dbg "done"
+  ]
 
--- #TODO
--- /-- info:
--- computing `fib 4`
--- starting outter loop (counter decremented)
--- memory:
--- | *0* ↦ 2
--- |  1  ↦ 1
--- |  2  ↦ 1
--- before moving current value
--- memory:
--- |  0  ↦ 2
--- |  1  ↦ 1
--- | *2* ↦ 0
--- |  3  ↦ 2
--- starting outter loop (counter decremented)
--- memory:
--- | *0* ↦ 1
--- |  1  ↦ 1
--- |  2  ↦ 2
--- |  3  ↦ 0
--- before moving current value
--- memory:
--- |  0  ↦ 1
--- |  1  ↦ 2
--- | *2* ↦ 0
--- |  3  ↦ 3
--- starting outter loop (counter decremented)
--- memory:
--- | *0* ↦ 0
--- |  1  ↦ 2
--- |  2  ↦ 3
--- |  3  ↦ 0
--- before moving current value
--- memory:
--- |  0  ↦ 0
--- |  1  ↦ 3
--- | *2* ↦ 0
--- |  3  ↦ 5
--- #[5]
--- -/
--- #guard_msgs in #eval do
---   let fib := seq #[ inp, fib, out ]
---   let n := 4
---   println! "computing `fib {n}`"
---   fib.evalIO! [n]
+/-- info:
+computing `fib 4`
+starting
+starting outter loop (counter decremented)
+memory:
+| *0* ↦ 2
+|  1  ↦ 1
+|  2  ↦ 1
+before moving current value
+memory:
+|  0  ↦ 2
+|  1  ↦ 1
+| *2* ↦ 0
+|  3  ↦ 2
+looping back (maybe)
+starting outter loop (counter decremented)
+memory:
+| *0* ↦ 1
+|  1  ↦ 1
+|  2  ↦ 2
+|  3  ↦ 0
+before moving current value
+memory:
+|  0  ↦ 1
+|  1  ↦ 2
+| *2* ↦ 0
+|  3  ↦ 3
+looping back (maybe)
+starting outter loop (counter decremented)
+memory:
+| *0* ↦ 0
+|  1  ↦ 2
+|  2  ↦ 3
+|  3  ↦ 0
+before moving current value
+memory:
+|  0  ↦ 0
+|  1  ↦ 3
+| *2* ↦ 0
+|  3  ↦ 5
+looping back (maybe)
+done with main loop
+done
+#[5]
+-/
+#guard_msgs in #eval do
+  let fib := fib
+  let n := 4
+  println! "computing `fib {n}`"
+  fib.evalIO! [n]
 
--- /-- info:
--- fib[0] = 1
--- fib[1] = 1
--- fib[2] = 2
--- fib[3] = 3
--- fib[4] = 5
--- fib[5] = 8
--- fib[6] = 13
--- fib[7] = 21
--- -/
--- #guard_msgs in #eval do
---   let fib := seq #[
---     out, fib, out, -- compute `fib 0` first
---     -- loop :
---     -- - read an input `i`
---     -- - if zero then stop
---     -- - else outputs the input, run `fib i` and outputs the result
---     inp, loopSeq #[ out, fib, out, inp ]
---   ]
---   let outputs ←
---     fib.evalIOTo! [1, 2, 3, 4, 5, 6, 7] .array (config := .allOff)
---   let mut num := none
---   for val in outputs do
---     if let some n := num then
---       println! "fib[{n}] = {val}"
---       num := none
---     else
---       num := some val
-
-def fibOfInput : Ast :=
-  seq #[ inp, fib, out ]
+/-- info:
+fib[0] = 1
+fib[1] = 1
+fib[2] = 2
+fib[3] = 3
+fib[4] = 5
+fib[5] = 8
+fib[6] = 13
+fib[7] = 21
+-/
+#guard_msgs in #eval do
+  let fib := seq #[
+    out, fib.pure, out, -- compute `fib 0` first
+    -- loop :
+    -- - read an input `i`
+    -- - if zero then stop
+    -- - else outputs the input, run `fib i` and outputs the result
+    inp, loopSeq #[ out, fib.pure, out, inp ]
+  ]
+  let outputs ←
+    fib.evalIOTo! [1, 2, 3, 4, 5, 6, 7] .array (config := .allOff)
+  let mut num := none
+  for val in outputs do
+    if let some n := num then
+      println! "fib[{n}] = {val}"
+      num := none
+    else
+      num := some val

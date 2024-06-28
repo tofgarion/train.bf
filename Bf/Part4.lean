@@ -142,7 +142,12 @@ namespace Rt
 
 def BfT.handleSeffElab : Ast.Seff → BfT Lean.Elab.Term.TermElabM Unit
 | .dbg msg => do
-  Lean.logInfo msg
+  if (← getState).dbg then
+    Lean.logInfo msg
+| .dump => do
+  let state ← getState
+  if state.dbg then
+    Lean.logInfo s!"memory:\n{state.prettyMem "| "}"
 | seff =>
   handleSeff seff
 
@@ -191,15 +196,15 @@ end Ty
 
 declare_syntax_cat bfOption (behavior := symbol)
 
-syntax "verb" " := " term : bfOption
-syntax "check" " := " term : bfOption
+syntax "dbg" " := " term : bfOption
+syntax "chk" " := " term : bfOption
 syntax "loopLimit" " := " term : bfOption
 
 
 
 inductive Options
-| verb : Bool → Options
-| check : Bool → Options
+| dbg : Bool → Options
+| chk : Bool → Options
 | loopLimit : Option Nat → Options
 
 namespace Options
@@ -208,12 +213,12 @@ open Lean (TSyntax)
 open Lean.Elab
 
 unsafe def ofStx : TSyntax `bfOption → TermElabM Options
-| `(bfOption| verb := $v) => do
+| `(bfOption| dbg := $v) => do
   let v ← evalTerm'' v
-  return Options.verb v
-| `(bfOption| check := $c) => do
+  return Options.dbg v
+| `(bfOption| chk := $c) => do
   let c ← evalTerm'' c
-  return Options.check c
+  return Options.chk c
 | `(bfOption| loopLimit := $limit) => do
   try
     let l ← evalTerm'' limit
@@ -225,8 +230,8 @@ unsafe def ofStx : TSyntax `bfOption → TermElabM Options
 | _ => throwUnsupportedSyntax
 
 def apply (config : Rt.Config) : Options → Rt.Config
-| verb b => {config with dbg := ¬ b}
-| check c => {config with check := c}
+| dbg b => {config with dbg := b}
+| chk c => {config with check := c}
 | loopLimit l => {config with loopLimit := l}
 
 unsafe def stxArrayToConfig (opts : Array (TSyntax `bfOption)) : TermElabM Rt.Config := do
@@ -281,7 +286,7 @@ end Extractor
 Runs `ast` on `inputs`, extracting the result with `extractor`.
 
 - `<options>` is potentially empty sequence of
-  - `(verb := b)` with `b : Bool`
+  - `(dbg := b)` with `b : Bool`
   - `(dbg := b)` with `b : Bool`
   - `(loopLimit := n?)` with `n? : Nat`
 
@@ -336,7 +341,7 @@ unsafe def elabBfRun : TermElab := fun stx _expectedType? =>
     let ast ← evalTerm Ast (mkConst ``Ast) ast
     -- Lean.logInfo s!"ast: {ast}"
     -- set up runtime state with appropriate inputs
-    let initState := Rt.State.mk inputs (config := config)
+    let initState := Rt.State.mk inputs 123 config
     -- run the code
     match ← Rt.Elab.justRun ast initState with
     | .ok () finalState =>
@@ -417,6 +422,6 @@ example : Bf.run! to head!
   rfl
 
 
-def fib7 := Bf.run! to head! !( ![Std.fibOfInput] ) [7]
+def fib5 := Bf.run! (dbg := false) to head! !( ![Std.fib] ) [5]
 
-#eval Lean.ToExpr.toExpr fib7
+example : fib5 = 8 := rfl

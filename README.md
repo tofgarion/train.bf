@@ -8,7 +8,7 @@
 
 # This repository
 
-This repository contains material for the *anzenlang* Lean 4 training/introduction. It is released
+This repository contains material for the *anzenlang* Lean 4 introduction course. It is released
 under the Mozilla Public License v2.0, see [LICENSE](./LICENSE) for more details.
 
 Participants learn Lean 4 by writing an interpreter for (an extended version of) the [brainfuck]
