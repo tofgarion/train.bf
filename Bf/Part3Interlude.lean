@@ -6,7 +6,19 @@ namespace Zen.Train.Bf
 
 /-! # Stackless?
 
+Despite `Rt.Spec.runWithStack` seeming tailrec, the fact that it produces `Mon Unit` means that
+dependending on what `Mon` actually is, it might not be tailrec.
 
+Lean has very good support for monads as they're used everywhere, but in this case it's not able to
+specialize `Rt.Spec.runWithStack` enough so that the code generated is itself tailrec.
+
+- demo with `Main.lean`
+
+
+
+Below is exactly the same function, but this time `IO` is not a type parameter.
+
+- demo with `Main.lean` again
 -/
 
 
