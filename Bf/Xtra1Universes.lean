@@ -1,4 +1,4 @@
-namespace Zen.Train.Universes
+namespace Zen.Train.Xtra.Universes
 
 
 
@@ -66,7 +66,7 @@ inductive Lst (α : Type) : Type -- the `: Type` can be omitted
 | nil
 | cons : α → Lst α → Lst α
 
-/-- info: Zen.Train.Universes.Lst (α : Type) : Type -/
+/-- info: Zen.Train.Xtra.Universes.Lst (α : Type) : Type -/
 #guard_msgs in #check Lst
 /-- info: Lst.cons 0 (Lst.cons 1 (Lst.cons 2 (Lst.cons 3 Lst.nil))) : Lst Nat -/
 #guard_msgs in #check Lst.nil.cons 3 |>.cons 2 |>.cons 1 |>.cons 0
@@ -106,7 +106,7 @@ First attempt at fixing this.
 -/
 
 /-- error:
-invalid universe level in constructor 'Zen.Train.Universes.Lst'.cons', parameter has type
+invalid universe level in constructor 'Zen.Train.Xtra.Universes.Lst'.cons', parameter has type
   α
 at universe level
   2

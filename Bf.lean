@@ -7,7 +7,8 @@ import Bf.Part3
 import Bf.Part3Interlude
 import Bf.Part4
 
-import Bf.XtraUniverses
+import Bf.Xtra1Universes
+import Bf.Xtra2Prop
 
 
 
