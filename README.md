@@ -129,6 +129,10 @@ Learning:
 
   <https://leanprover-community.github.io/mathematics_in_lean/index.html>
 
+- Logic and mechanized reasoning
+
+  <https://avigad.github.io/lamr/index.html>
+
 - Lean game server: game-ified resources for the ITP part of Lean 4
 
   <https://adam.math.hhu.de>

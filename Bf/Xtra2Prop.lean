@@ -220,7 +220,7 @@ theorem mem_tail_of_mem_not_head'
 | _, ListMem.cons _ a_in_tl =>
   a_in_tl
 
-/-! That was terrible, that's neither how propositions or proofs are written. -/
+/-! That was terrible, that's neither how propositions nor proofs are written. -/
 
 theorem mem_tail_of_mem_not_head
 : ∀ {a hd : α} {tl : List α}, a ≠ hd → ListMem a (hd :: tl) → ListMem a tl :=
@@ -253,6 +253,7 @@ theorem mem_tail_of_mem_not_head
 [reals]: https://leanprover-community.github.io/mathlib4_docs/Mathlib/Data/Real/Basic.html#Real
 -/
 
+/-- Usual `Set` specification. -/
 abbrev Set (α : Type u) := α → Prop
 
 namespace Set
