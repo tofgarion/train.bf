@@ -103,6 +103,10 @@ Documentation for these libraries available here:
 
 - [community website][comm], aggregates many resources including Lean's Zulip
 
+- [`lake` documentation][lakedoc], the Lean project manager
+
+- [doc-gen4][docgen], Lean project documentation generation
+
 Learning:
 
 - Functional Programming in Lean (FPiL)
@@ -121,9 +125,13 @@ Learning:
 
   <https://lean-lang.org/lean4/doc>
 
-- mathematics in Lean
+- Mathematics in Lean
 
   <https://leanprover-community.github.io/mathematics_in_lean/index.html>
+
+- Lean game server: game-ified resources for the ITP part of Lean 4
+
+  <https://adam.math.hhu.de>
 
 
 
@@ -135,3 +143,5 @@ Learning:
 [immutable beans]: https://arxiv.org/pdf/1908.05647
 [lean]: https://lean-lang.org
 [fpil]: https://lean-lang.org/functional_programming_in_lean
+[docgen]: https://github.com/leanprover/doc-gen4/tree/main
+[lakedoc]: https://github.com/leanprover/lean4/tree/master/src/lake#lake

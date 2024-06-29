@@ -11,5 +11,20 @@ import Bf.Xtra1Universes
 import Bf.Xtra2Prop
 
 
+/-! # So you want to Lean 4
+
+Let's start with a quick demo of setting up a new project, in which we discuss
+
+- project layout
+- file imports
+- `lake` commands
+-/
+
+
+/-! ## Starting with our brainfuck interpreter
+
+Uncomment the `Zen.prepare! "Bf"` line below. Unexpected things might happen!
+-/
+
 
 -- Zen.prepare! "Bf"
