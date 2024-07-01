@@ -46,7 +46,7 @@ Programming in Lean][fpil].
 
 ## Description
 
-- purely functional language
+- terminating, purely functional language
 
 - strong, dependent type system
 
@@ -96,6 +96,8 @@ Documentation for these libraries available here:
 
 
 ## Resources
+
+- <https://leanprover-community.github.io/mathlib4_docs>
 
 - [homepage][lean]
 
