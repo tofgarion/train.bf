@@ -198,6 +198,9 @@ def getLD' {α : Type} (a? : Option α) (getDefault : Unit → α) : α :=
 #eval @getLD' String none fun _ => "default"
 #eval getLD' none fun _ => "default"
 
+-- add following to remove implicit types
+-- set_option autoImplicit false in
+
 def getLD (a? : Option α) (getDefault : Unit → α) : α :=
   if let some a := a? then a else getDefault ()
 
@@ -208,7 +211,8 @@ def getLD (a? : Option α) (getDefault : Unit → α) : α :=
 
 
 inductive Opt (α : Type)
-| non | som : α → Opt α
+| non : Opt α
+| som : α → Opt α
 
 namespace Opt
 
@@ -224,8 +228,12 @@ def getLD : Opt α → (Unit → α) → α
 | non, getD => getD ()
 | som a, _ => a
 
+
+/-! # Time to discuss documentation! -/
+
 variable {α β : Type} (self : Opt α) (f : α → β)
 
+/-- Maps over an `Opt`. -/
 def map : Opt β :=
   match self with
   | non => non
@@ -269,7 +277,10 @@ where
   **add `deriving BEq` at the end of your type definition** (for my checks)
 -/
 
--- todo 🙀
+inductive L (α : Type)
+| nl : L α
+| cs : α → L α → L α
+deriving BEq
 
 #check L
 #check L.nl
@@ -287,7 +298,13 @@ def test₁ : L Nat :=
 - write the `head?` and `tail?` functions
 -/
 
--- todo 🙀
+def head?: (l : L α) -> Option α
+| nl => none
+| cs h _t => h
+
+def tail?: (l : L α) -> Option (L α)
+| nl => none
+| cs _h t => some t
 
 #check L.head?
 #check L.tail?
@@ -307,7 +324,10 @@ theorem head?_cons : ∀ {hd : α} {tl : L α}, (tl.cs hd).head? = hd :=
 - write a `map` over `L`
 -/
 
--- todo 🙀
+def map (f: α → β) (l: L α)  : (L β) :=
+match l with
+  | nl     => nl
+  | cs h t => cs (f h) (map f t)
 
 def test₁Mapped : L String :=
   test₁.map toString
@@ -323,7 +343,12 @@ def test₂ : L String :=
 - and now a `foldl`, "init" argument must come before the "function" argument
 -/
 
--- todo 🙀
+def foldl (l : L α) (init : β) (f : β → α → β) : β :=
+match l with
+  | nl     => init
+  | cs h t =>
+    let acc := f init h
+    t.foldl acc f
 
 def test₁Sum : Nat :=
   test₁.foldl 0 (· + ·)
