@@ -69,13 +69,7 @@ It has a single variant `chk` with a `Nat` cell value and a `String` message.
 and the message is output as an error.)
 -/
 
-section sol!
-/-- Check (safety) instructions.-/
-inductive Ast.Check
-/-- `chk n e`: if the current cell's value is not `n` crash with error message `e`. -/
-| chk : Nat → String → Check
-deriving Inhabited, Repr, BEq
-end sol!
+-- todo 🙀
 
 
 
@@ -98,14 +92,7 @@ namespace Ast
 
 #check Coe
 
-section sol!
-instance Op.instCoeAst : Coe Op Ast where
-  coe op := Ast.op op
-instance Seff.instCoeAst : Coe Seff Ast where
-  coe := Ast.seff
-instance Check.instCoeAst : Coe Check Ast :=
-  ⟨.check⟩
-end sol!
+-- todo 🙀
 
 #check (Op.inc : Ast)
 #check (Seff.dbg "checking" : Ast)
@@ -116,16 +103,7 @@ end sol!
 namespace Op
 /-! Write the `ofChar?` and `toChar` functions. -/
 
-section sol!
-def ofChar? : Char → Option Op
-| '>' => mvr | '<' => mvl
-| '+' => inc | '-' => dec
-| _ => none
-
-def toChar : Op → Char
-| mvr => '>' | mvl => '<'
-| inc => '+' | dec => '-'
-end sol!
+-- todo 🙀
 
 
 
@@ -159,17 +137,7 @@ end proofs
 - `ToString (Option Op)` with `'¿'` when `none`.
 -/
 
-section sol!
-/-- Pretty string representation. -/
-instance instToString : ToString Op :=
-  ⟨toString ∘ toChar⟩
-
-/-- Useful for debug. -/
-instance instOptionToString : ToString (Option Op) where
-  toString
-  | none => "¿"
-  | some o => toString o
-end sol!
+-- todo 🙀
 
 protected def toString (self : Op) := toString self
 
@@ -183,24 +151,7 @@ namespace Seff
 - `Seff.dbg some_string` is string-ified as `"dbg!(\"{some_string}\")"`.
 -/
 
-section sol!
-/-- Tries to build a `Seff`. -/
-def ofChar? : Char → Option Seff
-| '.' => out | ',' => inp
-| _ => none
-
-/-- Character representing a `Seff`. -/
-def toChar? : Seff → Option Char
-| out => '.' | inp => ','
-| dbg _ | dump => none
-
-/-- Pretty string representation. -/
-instance instToString : ToString Seff where
-  toString
-  | out => "." | inp => ","
-  | dbg s => s!"dbg!(\"{s}\")"
-  | dump => s!"dump!"
-end sol!
+-- todo 🙀
 
 protected def toString (self : Seff) := toString self
 
@@ -277,11 +228,7 @@ def seqN : Nat → Ast → Ast :=
 
 #check Int
 
-section sol!
-def moveBy : Int → Ast
-| .ofNat n => mvr.seqN n
-| .negSucc n => mvl.seqN n.succ
-end sol!
+-- todo 🙀
 
 example : moveBy 3 = seq #[mvr, mvr, mvr] := rfl
 example : moveBy 0 = seq #[] := rfl
@@ -315,15 +262,7 @@ def Test.val1 : Ast := seq #[
 
 /-! Write `chain` which chains two `Ast`-s, see `#eval` below. -/
 
-section sol!
-def chain : Ast → Ast → Ast
-| seq #[], ast
-| ast, seq #[] => ast
-| seq s1, seq s2 => seq <| s1 ++ s2
-| seq s1, ast2 => seq <| s1.push ast2
-| ast1, seq s2 => seq <| #[ast1] ++ s2
-| ast1, ast2 => seq #[ast1, ast2]
-end sol!
+-- todo 🙀
 
 /-- info: +- +- +- +- -/
 #guard_msgs in #eval do
@@ -337,9 +276,7 @@ end sol!
 /-! Write an `Append` instance. -/
 #check Append
 
-section sol!
-instance instAppend : Append Ast := ⟨chain⟩
-end sol!
+-- todo 🙀
 
 /-- info:
 +[->++<]>.[2?][dbg]+

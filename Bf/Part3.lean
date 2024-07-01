@@ -31,19 +31,7 @@ variable (self : Mem)
 - `alignRight` above
 - a `for` loop on `self.mem`.
 -/
-section sol!
-def prettyMemLines (pref := "") : Array String := Id.run do
-  let cellIdxWidth :=
-    toString self.mem.size.pred |>.length |> (· + 2)
-  let mut lines := Array.mkEmpty self.mem.size
-  let mut idx : Nat := 0
-  for val in self.mem do
-    let idxStr :=
-      if idx = self.ptr then s!"*{idx}*" else s!"{idx} "
-    idx := idx + 1
-    lines := lines.push s!"{pref}{alignRight cellIdxWidth idxStr} ↦ {val}"
-  return lines
-end sol!
+-- todo 🙀
 
 def prettyMem (pref := "") : String :=
   self.prettyMemLines pref |>.foldl
@@ -220,49 +208,7 @@ end
 ```
 -/
 
-section sol!
-@[specialize 1 2 self]
-partial def runWithStack (self : Spec Mon) (stack : Stack) : Ast → Mon Unit
-| .op o => do
-  self.op o
-  goUp stack
-| .seff s => do
-  self.seff s
-  goUp stack
-| .check c => do
-  self.check c
-  goUp stack
-| .block b => do
-  if ← self.isZeroCurr then goUp stack else
-    let val ← self.getCurr
-    self.runWithStack (.block val 0 b :: stack) b
-| .seq s =>
-  if h : 0 < s.size then
-    let stack := .seq s ⟨0, h⟩ :: stack
-    self.runWithStack stack s[0]
-  else goUp stack
-where
-  @[specialize 1 2 self]
-  goUp : Stack → Mon Unit
-    | [] => return ()
-    | .seq s idx :: stack =>
-      let idx := idx.val + 1
-      if h : idx < s.size then
-        let stack := .seq s ⟨idx, h⟩ :: stack
-        self.runWithStack stack s[idx]
-      else
-        goUp stack
-    | .block oldVal count body :: stack => do
-      if ← self.isZeroCurr then goUp stack else
-        let val ← self.getCurr
-        let count := if val < oldVal then count else count.succ
-        let loopLimit ← self.getLoopLimit
-        if let some limit := loopLimit then
-          if h_lt : limit < count then
-            Error.loopLimit limit count h_lt
-            |> self.throw
-        self.runWithStack (.block val count body :: stack) body
-end sol!
+-- todo 🙀
 
 /-- info:
 Zen.Train.Bf.Rt.Spec.runWithStack.{u} {Mon : Type → Type u} [Monad Mon] (self : Spec Mon) (stack : Stack) :
@@ -357,18 +303,7 @@ Note that, as is often the case we want to be able to access the state even when
 produced. It's useful for debugging.
 -/
 
-section sol!
-/-!
-It **might** be a good idea to introduce a first definition, potentially called `BfT.Res`.
--/
-
-inductive BfT.Res (α : Type)
-| ok : α → State → Res α
-| error : Error → State → Res α
-
-abbrev BfT (M : Type → Type) (α : Type) :=
-  State → M (BfT.Res α)
-end sol!
+-- todo 🙀
 
 
 
@@ -380,15 +315,7 @@ namespace BfT.Res
 Is there a `bind`-like operation that would make sense here?
 -/
 
-section sol!
-instance instFunctor : Functor Res where
-  map
-  | f, ok val s => ok (f val) s
-  | _, error e s => error e s
-
-def map (f : α → β) (self : Res α) :=
-  f <$> self
-end sol!
+-- todo 🙀
 end BfT.Res
 
 
@@ -399,105 +326,68 @@ variable {M : Type → Type} [Monad M]
 
 /-! Let's write a bunch of functions 🐙 -/
 
-section sol!
-def throw : Error → BfT M α :=
-  (.error · · |> pure)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.throw {M : Type → Type} [Monad M] {α : Type} : Error → BfT M α
 -/
 #guard_msgs in #check throw
 
-section sol!
-def throwLoopLimit : (limit : Nat) → (count : Nat) → limit < count → BfT M α :=
-  (.loopLimit · · · |> throw)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.throwLoopLimit {M : Type → Type} [Monad M] {α : Type} (limit count : Nat) : limit < count → BfT M α
 -/
 #guard_msgs in #check throwLoopLimit
 
-section sol!
-def throwCheckFailed (msg : String) (exp val : Nat) (h_ne : exp ≠ val) : BfT M α :=
-  throw <| .checkFailed msg exp val h_ne
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.throwCheckFailed {M : Type → Type} [Monad M] {α : Type} (msg : String) (exp val : Nat)
   (h_ne : exp ≠ val) : BfT M α
 -/
 #guard_msgs in #check throwCheckFailed
 
-section sol!
-def getState : BfT M State
-| state => return .ok state state
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.getState {M : Type → Type} [Monad M] : BfT M State
 -/
 #guard_msgs in #check getState
 
-section sol!
-def setState : State → BfT M Unit
-| state, _ => return .ok () state
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.setState {M : Type → Type} [Monad M] : State → BfT M Unit
 -/
 #guard_msgs in #check setState
 
-section sol!
-def mapMStateAnd : (State → M (α × State)) → BfT M α
-| f, state => do
-  let (res, state) ← f state
-  return .ok res state
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapMStateAnd {M : Type → Type} [Monad M] {α : Type} : (State → M (α × State)) → BfT M α
 -/
 #guard_msgs in #check mapMStateAnd
 
-section sol!
-def mapMState (f : State → M State) : BfT M Unit :=
-  mapMStateAnd fun state => do
-    return ((), ← f state)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapMState {M : Type → Type} [Monad M] (f : State → M State) : BfT M Unit
 -/
 #guard_msgs in #check mapMState
 
-section sol!
-def stateDoM (f : State → M α) : BfT M α :=
-  mapMStateAnd fun state => do
-    return (← f state, state)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.stateDoM {M : Type → Type} [Monad M] {α : Type} (f : State → M α) : BfT M α
 -/
 #guard_msgs in #check stateDoM
 
-section sol!
-def mapStateAnd (f : State → α × State) : BfT M α :=
-  mapMStateAnd (return f ·)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapStateAnd {M : Type → Type} [Monad M] {α : Type} (f : State → α × State) : BfT M α
 -/
 #guard_msgs in #check mapStateAnd
 
-section sol!
-def mapState (f : State → State) : BfT M Unit :=
-  mapMState (return f ·)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapState {M : Type → Type} [Monad M] (f : State → State) : BfT M Unit
 -/
 #guard_msgs in #check mapState
 
-section sol!
-def stateDo (f : State → α) : BfT M α :=
-  stateDoM (return f ·)
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.BfT.stateDo {M : Type → Type} [Monad M] {α : Type} (f : State → α) : BfT M α
 -/
@@ -507,49 +397,13 @@ Zen.Train.Bf.Rt.BfT.stateDo {M : Type → Type} [Monad M] {α : Type} (f : State
 
 /-! Time for `Monad (BfT M)`! -/
 
-section sol!
-@[always_inline, inline]
-protected def pure (a : α) : BfT M α
-| state => return .ok a state
-
-@[always_inline, inline]
-protected def bind (code : BfT M α) (f : α → BfT M β) : BfT M β
-| state => do
-  match ← code state with
-  | .ok a state => f a state
-  | .error e state => return .error e state
-
-@[always_inline, inline]
-protected def map (f : α → β) (a? : BfT M α) : BfT M β
-| state => do
-  match ← a? state with
-  | .ok a state => return .ok (f a) state
-  | .error e state => return .error e state
-
-@[always_inline, inline]
-protected def seqRight (a? : BfT M α) (andThen? : Unit → BfT M β) : BfT M β
-| state => do
-  match ← a? state with
-  | .ok _ state => andThen? () state
-  | .error e state => return .error e state
-
-instance instMonad : Monad (BfT M) where
-  pure := BfT.pure
-  bind := BfT.bind
-  map := BfT.map
-  seqRight := BfT.seqRight
-end sol!
+-- todo 🙀
 
 
 
 /-! And the appropriate `MonadLift` instance. -/
 
-section sol!
-instance instMonadLift : MonadLift M (BfT M) where
-  monadLift m state := do
-    let val ← m
-    return .ok val state
-end sol!
+-- todo 🙀
 
 
 
@@ -603,35 +457,7 @@ end liftStateFunctions
 - `handleSeff ... : Ast.Seff → BfT M Unit`: handles `Seff.dbg`-s with `println!`.
 -/
 
-section sol!
-def handleCheck : Ast.Check → BfT M Unit
-| .chk exp msg => do
-  let self ← getState
-  if self.check then
-    let val ← getCurr
-    if h_ne : exp ≠ val then
-      throwCheckFailed msg exp val h_ne
-
-def handleSeff : Ast.Seff → BfT M Unit
-| .out => do
-  let val ← getCurr
-  emit val
-| .inp => do
-  let input ← drainInput
-  mapState fun s => s.mapCurr (𝕂 input)
-| .dbg _msg | .dump =>
-  return ()
-
-def handleSeffIO [MonadLiftT IO M] : Ast.Seff → BfT M Unit
-| .dbg msg => do
-  if (←getState).dbg then
-    liftM (println! msg)
-| .dump => do
-  let state ← getState
-  if state.dbg then
-    liftM (println! "memory:\n{state.prettyMem "| "}")
-| seff => handleSeff seff
-end sol!
+-- todo 🙀
 
 end BfT
 

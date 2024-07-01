@@ -269,12 +269,7 @@ where
   **add `deriving BEq` at the end of your type definition** (for my checks)
 -/
 
-section sol!
-  inductive L (α : Type) : Type
-  | nl
-  | cs : α → L α → L α
-  deriving BEq
-end sol!
+-- todo 🙀
 
 #check L
 #check L.nl
@@ -292,15 +287,7 @@ def test₁ : L Nat :=
 - write the `head?` and `tail?` functions
 -/
 
-section sol!
-  def head? : L α → Option α
-  | nl => none
-  | cs hd _ => hd
-
-  def tail? : L α → Option (L α)
-  | nl => none
-  | cs _ tl => tl
-end sol!
+-- todo 🙀
 
 #check L.head?
 #check L.tail?
@@ -320,11 +307,7 @@ theorem head?_cons : ∀ {hd : α} {tl : L α}, (tl.cs hd).head? = hd :=
 - write a `map` over `L`
 -/
 
-section sol!
-def map (f : α → β) : L α → L β
-| nl => nl
-| cs hd tl => cs (f hd) (tl.map f)
-end sol!
+-- todo 🙀
 
 def test₁Mapped : L String :=
   test₁.map toString
@@ -340,13 +323,7 @@ def test₂ : L String :=
 - and now a `foldl`, "init" argument must come before the "function" argument
 -/
 
-section sol!
-def foldl (init : β) (f : β → α → β) : L α → β
-| nl => init
-| cs hd tl =>
-  let acc := f init hd
-  tl.foldl acc f
-end sol!
+-- todo 🙀
 
 def test₁Sum : Nat :=
   test₁.foldl 0 (· + ·)
@@ -446,33 +423,7 @@ instance ToStr.instOption [ToStr α] : ToStr (Option α) where
 #check ToString
 #check toString -- `ToString.toString` is directly in the prelude
 
-section sol!
-  namespace L
-
-  instance instInhabited : Inhabited (L α) :=
-    ⟨nl⟩
-
-  /-- `protected` means that the function is never directly in scope.
-
-  To refer to `toString`, we must write at least one namespace first: `L.toString`.
-
-  Still allows "method-style" notation `l.toString` if `l : L α`, but it prevents from shadowing the
-  `toString` that is already in the prelude.
-  It does not matter much here, but it's good practice.
-  -/
-  protected def toString [ToString α] (self : L α) : String :=
-    let start := "["
-    let almost :=
-      self.foldl start fun s elm =>
-        let sep := if s = start then "" else ", "
-        s!"{s}{sep}{elm}"
-    almost ++ "]"
-
-  instance instToString [ToString α] : ToString (L α) :=
-    ⟨L.toString⟩
-
-  end L
-end sol!
+-- todo 🙀
 
 -- getting super fancy
 #check (inferInstance : ∀ (α : Type), Inhabited (L α))

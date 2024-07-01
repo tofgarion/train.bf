@@ -94,12 +94,7 @@ private mkRaw ::
 -/
 
 
-section sol!
-structure Mem where
-private mkRaw ::
-  mem : Array Nat
-  ptr : Fin mem.size
-end sol!
+-- todo 🙀
 
 namespace Mem
 
@@ -115,11 +110,7 @@ Write the following functions, their semantics should be straightforward from th
 /-!
 **NB**: when you need to prove something simple, try `by simp` in case it works.
 -/
-section sol!
-def mk (capacity : Nat := 123) : Mem where
-  mem := Array.mkEmpty capacity |>.push 0
-  ptr := ⟨0, by simp⟩
-end sol!
+-- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Mem.mk (capacity : Nat := 123) : Mem -/
 #guard_msgs in #check mk
 
@@ -140,10 +131,7 @@ def setCurr (val : Nat) : Mem :=
   self.mapCurr (𝕂 val)
 
 
-section sol!
-def getCurr : Nat :=
-  self.mem[self.ptr]
-end sol!
+-- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Mem.getCurr (self : Mem) : Nat -/
 #guard_msgs in #check getCurr
 
@@ -156,14 +144,7 @@ Also, for no reason at all, maybe take a look at these.
 -/
 #checkout Nat.lt_of_le_of_lt
 #checkout Nat.pred_le
-section sol!
-def mvl : Mem := {self with
-  ptr := ⟨
-    self.ptr - 1,
-    Nat.lt_of_le_of_lt self.ptr.val.pred_le self.ptr.isLt,
-  ⟩
-}
-end sol!
+-- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Mem.mvl (self : Mem) : Mem -/
 #guard_msgs in #check mvl
 
@@ -175,17 +156,7 @@ We will use the following two theorems though, you can check them out.
 -/
 #checkout Array.size_push
 #checkout Nat.succ_lt_succ
-section sol!
-def mvr : Mem :=
-  if isLt : self.ptr.val + 1 < self.mem.size
-  then { self with ptr := ⟨self.ptr.val + 1, isLt⟩ }
-  else
-    let mem := self.mem.push 0
-    { self with
-        mem
-        ptr := ⟨self.ptr.val + 1, by simp [mem, Array.size_push, Nat.succ_lt_succ]⟩
-    }
-end sol!
+-- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Mem.mvr (self : Mem) : Mem -/
 #guard_msgs in #check mvr
 
@@ -252,21 +223,7 @@ def withNoLoopLimit : State :=
   {self with loopLimit := none}
 
 /-! Here are a few functions to write so that you don't fall asleed. -/
-section sol!
-private def liftMemFun (f : Mem → Mem) : State → State
-| self => {self with toMem := f self.toMem}
-
-def emit (n : Nat) : State :=
-  {self with outputs := self.outputs.push n}
-
-def drainInput : Nat × State :=
-  match self.inputs with
-  | [] => (0, self)
-  | nxt::inputs => (nxt, {self with inputs})
-
-def drainOutputs : Array Nat × State :=
-  (self.outputs, {self with outputs := #[]})
-end sol!
+-- todo 🙀
 
 /-- info: Zen.Train.Bf.Rt.State.liftMemFun (f : Mem → Mem) : State → State -/
 #guard_msgs in #check liftMemFun
@@ -309,60 +266,16 @@ namespace Extract
 
 /-! Let's write more functions 🐙 -/
 
-section sol!
-def foldAnd (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α :=
-  tryFold init (f · · |> .ok) finalCheck
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.Extract.foldAnd {β α : Type} (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α -/
 #guard_msgs in #check foldAnd
 
-section sol!
-def fold : α → (α → Nat → α) → Extract α :=
-  (foldAnd · · .ok)
-end sol!
+-- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Extract.fold {α : Type} : α → (α → Nat → α) → Extract α -/
 #guard_msgs in #check fold
 
-section sol!
-/- I know, you haven't seen monads yet, we'll see this version after the interlude. -/
-def apply : (self : Extract α) → Array Nat → Except Error α
-| unit, _ => return ()
-| array, a => return a
-| head?, a =>
-  if h : 0 < a.size
-  then return a[0]
-  else return none
-| head!, a => do
-  if h : 0 < a.size
-  then return a[0]
-  else .error <| .text "expected at least one output, found none"
-| tryFold init f finalize, l => do
-  let mut res := init
-  for n in l do
-    res ← f res n
-  finalize res
-  -- -- alternatively just
-  -- l.foldlM f init >>= finalize
-
-def apply' : Extract α → Array Nat → Except Error α
-| unit, _ => .ok ()
-| array, a => .ok a
-| head?, a =>
-  if h : 0 < a.size then .ok a[0] else .ok none
-| head!, a => do
-  if h : 0 < a.size then .ok a[0] else
-    .error <| .text "expected at least one output, found none"
-| tryFold init f finalize, l =>
-  applyTryFold init f l.data >>= finalize
-where
-  applyTryFold {α : Type} init f : List Nat → Except Error α
-  | [] => .ok init
-  | hd::tl =>
-    match f init hd with
-    | .ok init => applyTryFold init f tl
-    | .error e => .error e
-end sol!
+-- todo 🙀
 /-- info:
 Zen.Train.Bf.Rt.Extract.apply {α : Type} (self : Extract α) : Array Nat → Except Error α
 -/
@@ -370,10 +283,7 @@ Zen.Train.Bf.Rt.Extract.apply {α : Type} (self : Extract α) : Array Nat → Ex
 
 
 /-! Write `apply!`, which is defined as `Option.get! ∘ Except.toOption ∘ self.apply`. -/
-section sol!
-def apply! [Inhabited α] (self : Extract α) :=
-  Option.get! ∘ Except.toOption ∘ self.apply
-end sol!
+-- todo 🙀
 
 
 

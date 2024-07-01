@@ -78,11 +78,7 @@ Define an option type `Opt : Type → Type` with variants `non`e and `som`e.
 (To avoid clashing with Lean's `Option` type).
 -/
 
-section sol!
-inductive Opt (α : Type) : Type
-| non
-| som : α → Opt α
-end sol!
+-- todo 🙀
 
 #check Opt.non
 #check Opt.som
@@ -90,21 +86,10 @@ end sol!
 namespace Opt
 
 /-! Write a `ToString` instance for `Opt`. -/
-section sol!
-instance instToString [ToString α] : ToString (Opt α) where
-  toString
-    | non => "none"
-    | som a => toString a
-end sol!
+-- todo 🙀
 
 /-! Write a `Monad` instance for `Opt`. -/
-section sol!
-instance instMonad : Monad Opt where
-  pure := som
-  bind
-  | non, _ => non
-  | som a, f => f a
-end sol!
+-- todo 🙀
 
 
 
@@ -165,57 +150,19 @@ also
 structure State where
   counter : Nat
 
-section sol!
-def justReads (params : Nat) (state : State) : Nat :=
-  params + state.counter
-
--- alternatively
-def justReads' (params : Nat) : State → Nat :=
-  fun state => params + state.counter
-
-def readsWrites (params : Nat) (state : State) : Nat × State :=
-  let out := justReads params state
-  let state := { state with counter := state.counter + 1 }
-  (out, state)
-
--- alternatively
-def readsWrites' (params : Nat) : State → Nat × State :=
-  fun state =>
-    let out := justReads params state
-    let state := { state with counter := state.counter + 1 }
-    (out, state)
-end sol!
+-- todo 🙀
 
 
 
 /-! What would be the corresponding monads `ReadM` and `WriteM` for some generic state type `σ`? -/
 
-section sol!
-abbrev ReadM (σ : Type) (α : Type) : Type :=
-  σ → α
-
-abbrev WriteM (σ : Type) (α : Type) : Type :=
-  σ → α × σ
-  -- same as `ReadM σ (α × σ)`
-end sol!
+-- todo 🙀
 
 
 
 /-! Now just write `Monad` instances for them. -/
 
-section sol!
-instance ReadM.instMonad : Monad (ReadM σ) where
-  pure a _state := a
-  bind a? f? state :=
-    let a := a? state
-    f? a state
-
-instance WriteM.instMonad : Monad (WriteM σ) where
-  pure := Prod.mk
-  bind a? f? state :=
-    let (a, state) := a? state
-    f? a state
-end sol!
+-- todo 🙀
 
 
 
@@ -255,33 +202,7 @@ where
 log for each call.
 -/
 
-section sol!
-def WriteM.runDemo : IO Unit := do
-  let state := #[]
-  let (res, state) := demo 7 state
-  println! "demo 7"
-  -- so, turns out we can also `for`-iterate on collections when in a monad 😺
-  -- see the `ForIn` class for details
-  for line in state do
-    println! "- {line}"
-  println! "↦ {res}"
-  println! ""
-
-  let state := #[]
-  let (res, state) := demo 0 state
-  println! "demo 7"
-  for line in state do
-    println! "- {line}"
-  println! "↦ {res}"
-  println! ""
-
-  let state := #[]
-  let (res, state) := demo 10 state
-  println! "demo 7"
-  for line in state do
-    println! "- {line}"
-  println! "↦ {res}"
-end sol!
+-- todo 🙀
 
 #eval WriteM.runDemo
 
@@ -355,18 +276,7 @@ instance instMonad [Monad M] : Monad (SMonT σ M) where
 variable [Monad M]
 
 /-! Write the following functions. -/
-section sol!
-def get : SMonT σ M σ
-| state => return (state, state)
-
-def set (state : σ) : SMonT σ M Unit
-| _oldState => return ((), state)
-
-def printState [ToString σ] : SMonT σ IO Unit
-| state => do
-  println! "state: {state}"
-  return ((), state)
-end sol!
+-- todo 🙀
 
 /-- info: Zen.Train.Trash.SMonT.get {M : Type → Type} [Monad M] {σ : Type} : SMonT σ M σ -/
 #guard_msgs in #check get
@@ -394,12 +304,7 @@ Check out this class, and write the appropriate instance.
 -/
 #checkout MonadLift
 
-section sol!
-instance instMonadLift : MonadLift M (SMonT σ M) where
-  monadLift a? state := do
-    let a ← a?
-    return (a, state)
-end sol!
+-- todo 🙀
 
 /-! This gives access to `liftM` which (here) can lift `IO`-code to `SMonT σ IO`-code. -/
 
