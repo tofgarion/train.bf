@@ -343,12 +343,11 @@ def test₂ : L String :=
 - and now a `foldl`, "init" argument must come before the "function" argument
 -/
 
-def foldl (l : L α) (init : β) (f : β → α → β) : β :=
-match l with
-  | nl     => init
-  | cs h t =>
-    let acc := f init h
-    t.foldl acc f
+def foldl (init : β) (f : β → α → β) : L α → β
+| nl     => init
+| cs h t =>
+  let acc := f init h
+  t.foldl acc f
 
 def test₁Sum : Nat :=
   test₁.foldl 0 (· + ·)
@@ -445,8 +444,27 @@ instance ToStr.instOption [ToStr α] : ToStr (Option α) where
 - write `L.instToString`, a `ToString` instance for `L`
 -/
 
+#check Inhabited
+
+instance L.instInhabited : Inhabited (L α) := ⟨ nl ⟩
+
+
 #check ToString
 #check toString -- `ToString.toString` is directly in the prelude
+
+namespace L
+
+  def toString [ToString α] (self : L α) : String :=
+    let start := "["
+    let almost :=
+      self.foldl start fun s elm =>
+        let sep := if s = start then "" else ", "
+        s!"{s}{sep}{elm}"
+    almost ++ "]"
+
+  instance instToString [ToString α] : ToString (L α) :=
+    ⟨ L.toString ⟩
+end L
 
 -- todo 🙀
 
