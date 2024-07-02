@@ -230,6 +230,9 @@ private mkRaw ::
   outputs : Array Nat
 deriving Inhabited
 
+#check State.toMem
+#check State.toConfig
+
 namespace State
 
 def mk (inputs : List Nat) (capa : Nat := 123) (config : Config := default) : State where
@@ -237,6 +240,10 @@ def mk (inputs : List Nat) (capa : Nat := 123) (config : Config := default) : St
   toConfig := config
   inputs := inputs
   outputs := #[]
+
+#check
+  let state : State := mk []
+  state.dbg
 
 variable (self : State)
 
@@ -253,15 +260,35 @@ def withLoopLimit (loopLimit : Nat) : State :=
 def withNoLoopLimit : State :=
   {self with loopLimit := none}
 
-/-! Here are a few functions to write so that you don't fall asleed. -/
--- todo 🙀
+/-! Here are a few functions to write so that you don't fall asleep. -/
+
+/-- Apply f on mem -/
+def liftMemFun (f: Mem → Mem) : State → State :=
+  fun s => { s with toMem := f s.toMem }
 
 /-- info: Zen.Train.Bf.Rt.State.liftMemFun (f : Mem → Mem) : State → State -/
 #guard_msgs in #check liftMemFun
+
+/-- Add n as output -/
+def emit (n : Nat) : State  :=
+  { self with outputs := #[ n ] }
+
 /-- info: Zen.Train.Bf.Rt.State.emit (self : State) (n : Nat) : State -/
 #guard_msgs in #check emit
+
+/-- Drain first input -/
+def drainInput : Nat × State :=
+  match self.inputs with
+  | []     => ⟨ 0, self ⟩
+  | h :: t => ⟨ h, { self with inputs := t } ⟩
+
 /-- info: Zen.Train.Bf.Rt.State.drainInput (self : State) : Nat × State -/
 #guard_msgs in #check drainInput
+
+/-- Return all outputs -/
+def drainOutputs : Array Nat × State :=
+  ⟨ self.outputs, { self with outputs := #[] } ⟩
+
 /-- info: Zen.Train.Bf.Rt.State.drainOutputs (self : State) : Array Nat × State -/
 #guard_msgs in #check drainOutputs
 
