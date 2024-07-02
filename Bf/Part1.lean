@@ -69,7 +69,12 @@ It has a single variant `chk` with a `Nat` cell value and a `String` message.
 and the message is output as an error.)
 -/
 
--- todo 🙀
+inductive Ast.Check
+/-- `chk n e`: if the current cell's value is not `n` crash with error message `e`. -/
+| chk : Nat → String → Check
+deriving Inhabited, Repr, BEq
+
+#check Ast.Check.chk
 
 
 
@@ -92,7 +97,14 @@ namespace Ast
 
 #check Coe
 
--- todo 🙀
+/-- Coercion from Op to Ast -/
+instance Op.instCoeAst : Coe Op Ast := ⟨ op ⟩
+
+/-- Coercion from Seff to Ast -/
+instance Seff.instCoeAst : Coe Seff Ast := ⟨ seff ⟩
+
+/-- Coercion from Check to Ast -/
+instance Check.instCoeAst : Coe Check Ast := ⟨ check ⟩
 
 #check (Op.inc : Ast)
 #check (Seff.dbg "checking" : Ast)
@@ -103,8 +115,22 @@ namespace Ast
 namespace Op
 /-! Write the `ofChar?` and `toChar` functions. -/
 
--- todo 🙀
+#check Char
 
+/-- automatic coercion to some mvr -/
+
+def ofChar? : Char → Option Op
+| '>' => mvr
+| '<' => mvl
+| '+' => inc
+| '-' => dec
+| _   => none
+
+def toChar : Op → Char
+| mvr => '>'
+| mvl => '<'
+| inc => '+'
+| dec => '-'
 
 
 section proofs
@@ -137,9 +163,18 @@ end proofs
 - `ToString (Option Op)` with `'¿'` when `none`.
 -/
 
--- todo 🙀
+instance instToString : ToString Op where
+  toString := (toString ∘ toChar)
+
+instance instOptionToString : ToString (Option Op) where
+  toString
+  | none   => "¿"
+  | some o => toString o
 
 protected def toString (self : Op) := toString self
+
+#check toString
+#check Op.toString
 
 end Op
 
@@ -151,7 +186,22 @@ namespace Seff
 - `Seff.dbg some_string` is string-ified as `"dbg!(\"{some_string}\")"`.
 -/
 
--- todo 🙀
+def ofChar? : Char → Option Seff
+| '.' => out
+| ',' => inp
+| _   => none
+
+def toChar? : Seff → Option Char
+| out => '.'
+| inp => ','
+| dbg _ | dump => none
+
+instance instToString : ToString Seff where
+  toString
+  | out   => "."
+  | inp   => ","
+  | dbg s => s!"dbg!(\"{s}\")"
+  | dump  => s!"dump!"
 
 protected def toString (self : Seff) := toString self
 
@@ -178,6 +228,8 @@ instance instToString : ToString Check := ⟨Check.toString⟩
 end Check
 
 
+
+/-- partial est nécessaire pour la terminaison -/
 
 protected partial
 def toString : Ast → String
@@ -228,7 +280,9 @@ def seqN : Nat → Ast → Ast :=
 
 #check Int
 
--- todo 🙀
+def moveBy : (i : Int) → Ast
+| Int.ofNat n   => if (n = 0) then seq #[] else seqN n mvr
+| Int.negSucc n => seqN (n + 1) mvl
 
 example : moveBy 3 = seq #[mvr, mvr, mvr] := rfl
 example : moveBy 0 = seq #[] := rfl
@@ -262,7 +316,13 @@ def Test.val1 : Ast := seq #[
 
 /-! Write `chain` which chains two `Ast`-s, see `#eval` below. -/
 
--- todo 🙀
+def chain : Ast → Ast → Ast
+| seq #[], ast   => ast
+| ast, seq #[]   => ast
+| seq s1, seq s2 => seq (s1 ++ s2)
+| ast, seq s     => seq (#[ast] ++ s)
+| seq s, ast     => seq (s ++ #[ast])
+| ast1, ast2     => seq #[ast1, ast2]
 
 /-- info: +- +- +- +- -/
 #guard_msgs in #eval do
@@ -276,7 +336,7 @@ def Test.val1 : Ast := seq #[
 /-! Write an `Append` instance. -/
 #check Append
 
--- todo 🙀
+instance instAppend : Append Ast := ⟨ chain ⟩
 
 /-- info:
 +[->++<]>.[2?][dbg]+
