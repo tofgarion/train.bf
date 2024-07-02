@@ -49,7 +49,7 @@ different.
 
 namespace Error
 
-def toString : Error → String
+protected def toString : Error → String
 | text msg => s!"{msg}"
 | loopLimit limit count _ => s!"\
   potential infinite loop detected \
@@ -60,7 +60,7 @@ def toString : Error → String
   s!"value check failed, expected `{exp}`, got `{val}`: {msg}"
 
 instance instToString : ToString Error :=
-  ⟨toString⟩
+  ⟨Error.toString⟩
 
 end Error
 
@@ -94,7 +94,11 @@ private mkRaw ::
 -/
 
 
--- todo 🙀
+structure Mem where
+private mkRaw ::
+  mem : Array Nat
+  ptr : Fin mem.size
+
 
 namespace Mem
 
@@ -104,13 +108,17 @@ namespace Mem
 - <https://leanprover-community.github.io/mathlib4_docs>
 
 
-Write the following functions, their semantics should be straightforward from their signatures.
+Write the following function, its semantics should be straightforward from its signature.
 -/
 
 /-!
 **NB**: when you need to prove something simple, try `by simp` in case it works.
 -/
--- todo 🙀
+
+def mk (capacity : Nat := 123) : Mem where
+  mem := Array.mkEmpty capacity |>.push 0
+  ptr := Fin.mk 0 (by simp)
+
 /-- info: Zen.Train.Bf.Rt.Mem.mk (capacity : Nat := 123) : Mem -/
 #guard_msgs in #check mk
 
@@ -130,8 +138,9 @@ def mapCurr (f : Nat → Nat) : Mem :=
 def setCurr (val : Nat) : Mem :=
   self.mapCurr (𝕂 val)
 
+def getCurr : Nat :=
+  self.mem[self.ptr]
 
--- todo 🙀
 /-- info: Zen.Train.Bf.Rt.Mem.getCurr (self : Mem) : Nat -/
 #guard_msgs in #check getCurr
 
@@ -144,7 +153,16 @@ Also, for no reason at all, maybe take a look at these.
 -/
 #checkout Nat.lt_of_le_of_lt
 #checkout Nat.pred_le
--- todo 🙀
+
+def mvl : Mem := {
+  self with
+    ptr := ⟨
+      self.ptr - 1,
+      Nat.lt_of_le_of_lt (n := self.ptr - 1) (m := self.ptr) (k := self.mem.size)
+        (Nat.pred_le self.ptr) (self.ptr.isLt)
+    ⟩
+}
+
 /-- info: Zen.Train.Bf.Rt.Mem.mvl (self : Mem) : Mem -/
 #guard_msgs in #check mvl
 
@@ -156,7 +174,20 @@ We will use the following two theorems though, you can check them out.
 -/
 #checkout Array.size_push
 #checkout Nat.succ_lt_succ
--- todo 🙀
+
+def mvr : Mem :=
+  if h_succ_ptr : self.ptr.val + 1 < self.mem.size then
+    { self with ptr := ⟨ self.ptr.val + 1, h_succ_ptr ⟩ }
+  else
+    let mem := self.mem.push 0
+    { self with
+      mem
+      ptr := ⟨
+        self.ptr.val + 1,
+        by simp [mem, Nat.succ_lt_succ]
+      ⟩
+    }
+
 /-- info: Zen.Train.Bf.Rt.Mem.mvr (self : Mem) : Mem -/
 #guard_msgs in #check mvr
 
