@@ -324,16 +324,56 @@ namespace Extract
 
 /-! Let's write more functions 🐙 -/
 
--- todo 🙀
+
+/-- foldAnd function : builds an Extract value, expressed as tryFold -/
+def foldAnd {β α : Type} (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α :=
+  tryFold init (fun elt n => Except.ok (f elt n)) finalCheck
+
+  -- or f · · |> .ok
+  -- or Except.ok ∘ f ·
+
 /-- info:
 Zen.Train.Bf.Rt.Extract.foldAnd {β α : Type} (init : β) (f : β → Nat → β) (finalCheck : β → Except Error α) : Extract α -/
 #guard_msgs in #check foldAnd
 
--- todo 🙀
+
+/-- fold function : builds an extract value without final check -/
+def fold : α → (α → Nat → α) → Extract α :=
+  (foldAnd · · Except.ok)
+
 /-- info: Zen.Train.Bf.Rt.Extract.fold {α : Type} : α → (α → Nat → α) → Extract α -/
 #guard_msgs in #check fold
 
--- todo 🙀
+#check Array.get
+
+/-- apply function -/
+def apply : (self : Extract α) → Array Nat → Except Error α
+| unit, _  => Except.ok ()
+| array, a => Except.ok a
+| head?, a =>
+  if h_size : 0 < a.size then
+    a.get ⟨ 0, h_size ⟩ |> some |> .ok
+    -- .ok <| a[0]
+    -- because GetElem "looks" for a proof
+  else
+    .ok none
+| head!, a =>
+  if h_size : 0 < a.size then
+    .ok <| a.get ⟨ 0, h_size ⟩
+  else
+    Except.error <| Error.text "expected at least one output, found none"
+| tryFold init f finalize, l =>
+  match applyTryFold init f l.data with
+  | .ok res    => finalize res
+  | .error err => .error err
+where
+  applyTryFold {α : Type} init f : List Nat → Except Error α
+  | []     => .ok init
+  | h :: t =>
+    match f init h with
+    | .ok init => applyTryFold init f t
+    | .error e => .error e
+
 /-- info:
 Zen.Train.Bf.Rt.Extract.apply {α : Type} (self : Extract α) : Array Nat → Except Error α
 -/
@@ -341,9 +381,9 @@ Zen.Train.Bf.Rt.Extract.apply {α : Type} (self : Extract α) : Array Nat → Ex
 
 
 /-! Write `apply!`, which is defined as `Option.get! ∘ Except.toOption ∘ self.apply`. -/
--- todo 🙀
 
-
+def apply! [Inhabited α] (self : Extract α) : Array Nat → α :=
+  Option.get! ∘ Except.toOption ∘ self.apply
 
 /-- Extracts the sum of all the outputs. -/
 def sum (init : Nat := 0) : Extract Nat :=
