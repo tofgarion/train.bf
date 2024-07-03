@@ -152,6 +152,7 @@ variable {Mon : Type → Type u} [Monad Mon]
 def isZeroCurr (self : Spec Mon) : Mon Bool :=
   --      vvv~~~~~ `Functor.map`, comes for free as `Monad Mon` implies `Functor Mon`
   (· = 0) <$> self.getCurr
+  -- or do let val ← self.getCurr return val = 0
 
 #checkout Functor
 
@@ -172,9 +173,9 @@ yours.
 #checkout StateT
 
 scoped instance TestRt : Spec (StateT State IO) where
-  op op := do
+  op operator := do
     let state ← get
-    set (state.applyOp op)
+    set (state.applyOp operator)
   seff
   | .out => fun s => return ((), s.emit s.getCurr)
   | .inp => fun s =>
@@ -224,7 +225,56 @@ end
 ```
 -/
 
--- todo 🙀
+partial
+def runWithStack [Monad Mon] (self : Spec Mon) (stack : Stack) :  Ast → Mon Unit
+| .op operation => do
+  self.op operation
+  goUp stack
+| .seff effect => do
+  self.seff effect
+  goUp stack
+| .check condition => do
+  self.check condition
+  goUp stack
+| .seq seq_array =>
+  if h_size : 0 < seq_array.size then
+    let frame := Frame.seq seq_array ⟨ 0, h_size ⟩
+    let stack := frame :: stack
+    self.runWithStack stack (seq_array.get ⟨ 0, h_size ⟩)
+  else
+    goUp stack
+| .block body => do
+  let val ← self.getCurr
+  if val = 0
+  then goUp stack
+  else
+    let frame := Frame.block val 0 body
+    let stack := frame::stack
+    self.runWithStack stack body
+where
+  -- look at stack and find the next thing to do
+  goUp : Stack → Mon Unit
+  | []                           => return ()
+  | (Frame.seq arr idx) :: stack =>
+    if h_size : idx + 1 < arr.size then
+      let idx' : Fin arr.size := ⟨ idx + 1, h_size ⟩
+      let frame := Frame.seq arr idx'
+      let stack := frame :: stack
+      self.runWithStack stack (arr.get ⟨ idx', h_size ⟩)
+    else
+      goUp stack
+  | Frame.block oldVal count body :: stack => do
+    let val ← self.getCurr
+    if val = 0 then
+      goUp stack
+    else
+      let count := if oldVal ≤ val then count + 1 else count
+      if let some limit ← self.getLoopLimit then
+        if h_err : limit < count then
+          self.throw <| Error.loopLimit limit count h_err
+      let frame := Frame.block val count body
+      let stack := frame :: stack
+      self.runWithStack stack body
 
 /-- info:
 Zen.Train.Bf.Rt.Spec.runWithStack.{u} {Mon : Type → Type u} [Monad Mon] (self : Spec Mon) (stack : Stack) :
@@ -319,7 +369,8 @@ Note that, as is often the case we want to be able to access the state even when
 produced. It's useful for debugging.
 -/
 
--- todo 🙀
+abbrev BfT (M : Type → Type) (α : Type) : Type :=
+  State → M (Except Error α × State)
 
 
 

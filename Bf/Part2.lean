@@ -271,7 +271,7 @@ def liftMemFun (f: Mem → Mem) : State → State :=
 
 /-- Add n as output -/
 def emit (n : Nat) : State  :=
-  { self with outputs := #[ n ] }
+  { self with outputs := self.outputs.push n }
 
 /-- info: Zen.Train.Bf.Rt.State.emit (self : State) (n : Nat) : State -/
 #guard_msgs in #check emit
