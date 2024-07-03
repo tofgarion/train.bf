@@ -64,7 +64,8 @@ instance instMonad : Monad Just where
 
 def doLetMut (val : Nat) : Just Nat := do
   let mut val := val
-  if 0 < val then val := val - 1
+  if 0 < val then
+    val := val - 1
   return val % 2 -- same as `pure (val % 2)`
 
 end Just
@@ -78,7 +79,9 @@ Define an option type `Opt : Type → Type` with variants `non`e and `som`e.
 (To avoid clashing with Lean's `Option` type).
 -/
 
--- todo 🙀
+inductive Opt : Type → Type
+| non : Opt α
+| som : α → Opt α
 
 #check Opt.non
 #check Opt.som
@@ -86,12 +89,19 @@ Define an option type `Opt : Type → Type` with variants `non`e and `som`e.
 namespace Opt
 
 /-! Write a `ToString` instance for `Opt`. -/
--- todo 🙀
+instance instToString [ToString α] : ToString (Opt α) where
+  toString
+    | non   => "none"
+    | som a => toString a
 
 /-! Write a `Monad` instance for `Opt`. -/
--- todo 🙀
-
-
+instance instToMonad : Monad Opt where
+  pure a :=
+    som a
+  bind a? f? :=
+    match a? with
+      | non   => non
+      | som a => f? a
 
 /-! We can use `←` to "access the value", *i.e.* trigger a bind. -/
 
@@ -150,19 +160,49 @@ also
 structure State where
   counter : Nat
 
--- todo 🙀
+def justReads (params : Nat) (state : State) : Nat :=
+  params + state.counter
 
+def readsWrites (params : Nat) (state : State) : Nat × State :=
+  let out := justReads params state
+  let state := { state with counter := state.counter + 1 }
+  (out, state)
+
+def justReads' (params : Nat) : State → Nat
+| state => params + state.counter
+
+def readsWrites' (params : Nat) : (state : State) → Nat × State
+| state =>
+  let out := justReads params state
+  let state := { state with counter := state.counter + 1 }
+  (out, state)
 
 
 /-! What would be the corresponding monads `ReadM` and `WriteM` for some generic state type `σ`? -/
 
--- todo 🙀
+abbrev ReadM (σ : Type) (α : Type) : Type :=
+  σ → α
 
-
+abbrev WriteM (σ : Type) (α : Type) : Type :=
+  σ → α × σ
 
 /-! Now just write `Monad` instances for them. -/
 
--- todo 🙀
+instance instReadM : Monad (ReadM σ) where
+  pure a _ := a
+  -- ou 𝕂 a
+  bind a? f? :=
+    fun s =>
+      let a := a? s
+      f? a s
+
+instance instWriteM : Monad (WriteM σ) where
+  pure a :=
+    fun s => ⟨ a, s ⟩
+  bind a? f? :=
+    fun s =>
+      let ⟨ a, s' ⟩ := a? s
+      f? a s'
 
 
 
@@ -202,7 +242,15 @@ where
 log for each call.
 -/
 
--- todo 🙀
+def WriteM.runDemo : IO Unit := do
+  for input in [0, 1, 2, 3, 4, 15, 20] do
+    let state := #[]
+    let (res, state) := demo input state
+    println! "demo {input}"
+    for line in state do
+      println! "- {line}"
+    println! "↦ {res}"
+    println! ""
 
 #eval WriteM.runDemo
 
@@ -267,8 +315,8 @@ abbrev SMonT (σ : Type) (M : Type → Type) (α : Type) : Type :=
   σ → M (α × σ)
 
 namespace SMonT
-instance instMonad [Monad M] : Monad (SMonT σ M) where
-  pure a state := pure (a, state)
+instance instMonad [inst : Monad M] : Monad (SMonT σ M) where
+  pure a := fun state => inst.pure (a, state)
   bind a? f? state := do
     let (a, state) ← a? state
     f? a state
@@ -276,14 +324,26 @@ instance instMonad [Monad M] : Monad (SMonT σ M) where
 variable [Monad M]
 
 /-! Write the following functions. -/
--- todo 🙀
+
+def get : SMonT σ M σ :=
+    fun state => pure (state, state)
 
 /-- info: Zen.Train.Trash.SMonT.get {M : Type → Type} [Monad M] {σ : Type} : SMonT σ M σ -/
 #guard_msgs in #check get
+
+def set (state : σ) : SMonT σ M Unit :=
+  fun _ => pure ((), state)
+
 /-- info:
 Zen.Train.Trash.SMonT.set {M : Type → Type} [Monad M] {σ : Type} (state : σ) : SMonT σ M Unit
 -/
 #guard_msgs in #check set
+
+def printState [ToString σ] : SMonT σ IO Unit :=
+  fun s => do
+    println! "state: {s}"
+    return ((), s)
+
 /-- info: Zen.Train.Trash.SMonT.printState {σ : Type} [ToString σ] : SMonT σ IO Unit -/
 #guard_msgs in #check printState
 
@@ -304,7 +364,11 @@ Check out this class, and write the appropriate instance.
 -/
 #checkout MonadLift
 
--- todo 🙀
+instance [Monad M] : MonadLift M (SMonT σ M) where
+  monadLift a? :=
+    fun s => do
+      let a ← a?
+      return (a, s)
 
 /-! This gives access to `liftM` which (here) can lift `IO`-code to `SMonT σ IO`-code. -/
 
