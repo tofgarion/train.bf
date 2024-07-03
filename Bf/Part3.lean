@@ -31,7 +31,23 @@ variable (self : Mem)
 - `alignRight` above
 - a `for` loop on `self.mem`.
 -/
--- todo 🙀
+def prettyMemLines (pref := "") : Array String := Id.run do
+  let cellIdxWith :=
+    toString self.mem.size.pred |>.length |> (. + 2)
+  let mut lines := Array.mkEmpty self.mem.size
+  let mut idx   := 0
+  for val in self.mem do
+    let idxStr :=
+      if idx = self.ptr.val
+      then s!"*{idx}*"
+      else s!"{idx} "
+    lines := lines.push s!"{pref}{alignRight cellIdxWith idxStr} ↦ {val}"
+    idx := idx + 1
+  lines
+
+#eval do
+  for line in Mem.mk |>.mvr |>.setCurr 3 |>.prettyMemLines "> " do
+    println! line
 
 def prettyMem (pref := "") : String :=
   self.prettyMemLines pref |>.foldl
