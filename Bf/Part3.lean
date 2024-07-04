@@ -369,9 +369,12 @@ Note that, as is often the case we want to be able to access the state even when
 produced. It's useful for debugging.
 -/
 
-abbrev BfT (M : Type → Type) (α : Type) : Type :=
-  State → M (Except Error α × State)
+inductive BfT.Res (α : Type)
+| ok : α → State → Res α
+| error : Error → State → Res α
 
+abbrev BfT (M : Type → Type) (α : Type) :=
+  State → M (BfT.Res α)
 
 
 /-! Great, make sure you have my version now. -/
@@ -379,10 +382,15 @@ abbrev BfT (M : Type → Type) (α : Type) : Type :=
 namespace BfT.Res
 /-! Is `BfT.Res` a (reasonable) monad?
 
+    Cannot write pure (wich state ?)
 Is there a `bind`-like operation that would make sense here?
 -/
 
--- todo 🙀
+instance instFunctor : Functor Res where
+  map f
+  | ok a state => ok (f a) state
+  | error e state => error e state
+
 end BfT.Res
 
 
@@ -393,68 +401,106 @@ variable {M : Type → Type} [Monad M]
 
 /-! Let's write a bunch of functions 🐙 -/
 
--- todo 🙀
+def throw {M : Type → Type} [Monad M] {α : Type} : Error → BfT M α :=
+  fun e s => pure (.error e s)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.throw {M : Type → Type} [Monad M] {α : Type} : Error → BfT M α
 -/
 #guard_msgs in #check throw
 
--- todo 🙀
+
+def throwLoopLimit {M : Type → Type} [Monad M]
+  {α : Type} (limit count : Nat) : limit < count → BfT M α
+| proof => throw (Error.loopLimit limit count proof)
+
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.throwLoopLimit {M : Type → Type} [Monad M] {α : Type} (limit count : Nat) : limit < count → BfT M α
 -/
 #guard_msgs in #check throwLoopLimit
 
--- todo 🙀
+def throwCheckFailed {M : Type → Type} [Monad M]
+  {α : Type} (msg : String) (exp val : Nat) (h_ne : exp ≠ val) : BfT M α :=
+  .checkFailed msg exp val h_ne |> throw
+
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.throwCheckFailed {M : Type → Type} [Monad M] {α : Type} (msg : String) (exp val : Nat)
   (h_ne : exp ≠ val) : BfT M α
 -/
 #guard_msgs in #check throwCheckFailed
 
--- todo 🙀
+
+def getState {M : Type → Type} [Monad M] : BfT M State
+| state => return .ok state state
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.getState {M : Type → Type} [Monad M] : BfT M State
 -/
 #guard_msgs in #check getState
 
--- todo 🙀
+def setState {M : Type → Type} [Monad M] : State → BfT M Unit
+| state, _ => return .ok () state
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.setState {M : Type → Type} [Monad M] : State → BfT M Unit
 -/
 #guard_msgs in #check setState
 
--- todo 🙀
+def mapMStateAnd {M : Type → Type} [Monad M] {α : Type}
+-- (StateT M α)
+-- State → M (Res α)
+: (State → M (α × State)) → BfT M α
+| f, state => do
+  let (a, state) ← f state
+  return .ok a state
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapMStateAnd {M : Type → Type} [Monad M] {α : Type} : (State → M (α × State)) → BfT M α
 -/
 #guard_msgs in #check mapMStateAnd
 
--- todo 🙀
+def mapMState {M : Type → Type} [Monad M] (f : State → M State) : BfT M Unit :=
+  mapMStateAnd fun s => do
+    let s ← f s
+    return ((), s)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapMState {M : Type → Type} [Monad M] (f : State → M State) : BfT M Unit
 -/
 #guard_msgs in #check mapMState
 
--- todo 🙀
+def stateDoM {M : Type → Type} [Monad M] {α : Type} (f : State → M α) : BfT M α :=
+  mapMStateAnd fun s => do
+    let res ← f s
+    return (res, s)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.stateDoM {M : Type → Type} [Monad M] {α : Type} (f : State → M α) : BfT M α
 -/
 #guard_msgs in #check stateDoM
 
--- todo 🙀
+
+def mapStateAnd {M : Type → Type} [Monad M] {α : Type} (f : State → α × State) : BfT M α :=
+  mapMStateAnd (pure ∘ f)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapStateAnd {M : Type → Type} [Monad M] {α : Type} (f : State → α × State) : BfT M α
 -/
 #guard_msgs in #check mapStateAnd
 
--- todo 🙀
+def mapState {M : Type → Type} [Monad M] (f : State → State) : BfT M Unit :=
+  mapMState (pure ∘ f)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.mapState {M : Type → Type} [Monad M] (f : State → State) : BfT M Unit
 -/
 #guard_msgs in #check mapState
 
--- todo 🙀
+def stateDo {M : Type → Type} [Monad M] {α : Type} (f : State → α) : BfT M α :=
+  stateDoM (pure ∘ f)
+
 /-- info:
 Zen.Train.Bf.Rt.BfT.stateDo {M : Type → Type} [Monad M] {α : Type} (f : State → α) : BfT M α
 -/
@@ -464,13 +510,21 @@ Zen.Train.Bf.Rt.BfT.stateDo {M : Type → Type} [Monad M] {α : Type} (f : State
 
 /-! Time for `Monad (BfT M)`! -/
 
--- todo 🙀
-
-
+instance instMonad [Monad M] : Monad (BfT M) where
+  pure a state       := return .ok a state
+  bind transformer f :=
+    fun state => do
+      let a ← transformer state
+      match a with
+      | Res.ok    res s => f res s
+      | Res.error err s => return Res.error err s
 
 /-! And the appropriate `MonadLift` instance. -/
 
--- todo 🙀
+instance instMonadLift : MonadLift M (BfT M) where
+  monadLift := fun a? state => do
+    let a ← a?
+    return .ok a state
 
 
 
@@ -521,10 +575,38 @@ end liftStateFunctions
 
 - `handleCheck : Ast.Check → BfT M Unit`, self-explanatory;
 - `handleSeff : Ast.Seff → BfT M Unit`: ignores `Seff.dbg`-s;
-- `handleSeff ... : Ast.Seff → BfT M Unit`: handles `Seff.dbg`-s with `println!`.
+- `handleSeffIO ... : Ast.Seff → BfT M Unit`: handles `Seff.dbg`-s with `println!`.
 -/
 
--- todo 🙀
+def handleCheck : Ast.Check → BfT M Unit
+| Ast.Check.chk exp err => do
+  let state ← getState
+  if state.check then
+    let curr ← getCurr
+    if h : exp ≠ curr then
+      throwCheckFailed err exp curr h
+
+def handleSeff : Ast.Seff → BfT M Unit
+| .out => do
+  let curr ← getCurr
+  emit curr
+| .inp => do
+  let state ← getState
+  let (input, state) := state.drainInput
+  let state := state.mapCurr (fun _ => input)
+  setState state
+| .dbg _  => return
+| .dump   => return
+
+def handleSeffIO [MonadLiftT IO M] : Ast.Seff → BfT M Unit
+| .dbg msg => do
+  if (← getState).dbg then
+    liftM (println! msg)
+| .dump => do
+  if (← getState).dbg then
+    let pretty := (← getState).prettyMem "| "
+    liftM (println! "memory:\n{pretty}")
+| s@.out | s@.inp => handleSeff s
 
 end BfT
 
